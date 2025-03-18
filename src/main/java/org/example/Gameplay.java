@@ -11,6 +11,7 @@ import java.io.InputStream;
 import java.sql.*;
 import java.util.*;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class Gameplay extends JFrame {
     private final JLabel[] odpowiedziLabels = new JLabel[6];
@@ -19,6 +20,9 @@ public class Gameplay extends JFrame {
     private final Map<String, Integer> odpowiedzi = new LinkedHashMap<>();
     private final Map<String, Integer> punktyOdpowiedzi = new HashMap<>();
     private final List<String> wprowadzoneOdpowiedzi = new ArrayList<>();
+
+    // Lista słów nieistotnych (stop words)
+    private final Set<String> stopWords = Set.of("i", "lub", "czy", "a", "w", "na", "do", "się");
 
     public Gameplay(String selectedCategory) {
         setTitle("Familiada");
@@ -69,7 +73,7 @@ public class Gameplay extends JFrame {
                     String odpowiedz = rs.getString("odpowiedz" + i);
                     if (odpowiedz != null) {
                         int punkty = rs.getInt("punkty" + i);
-                        odpowiedzi.put(odpowiedz.toLowerCase(), 7 - i);
+                        odpowiedzi.put(odpowiedz.toLowerCase(), 7 - i); // Zachowujemy oryginalną odpowiedź
                         punktyOdpowiedzi.put(odpowiedz.toLowerCase(), punkty);
                     }
                 }
@@ -109,21 +113,43 @@ public class Gameplay extends JFrame {
             LemmatizerME lemmatizer = new LemmatizerME(model);
             SimpleTokenizer tokenizer = SimpleTokenizer.INSTANCE;
 
-            String[] tokens = tokenizer.tokenize(odpowiedzUzytkownika);
+            // Normalizacja odpowiedzi użytkownika (usuwanie spacji i znaków polskich)
+            String znormalizowanaOdpowiedzUzytkownika = normalizujTekst(odpowiedzUzytkownika);
+
+            // Tokenizacja i lematyzacja odpowiedzi użytkownika
+            String[] tokens = tokenizer.tokenize(znormalizowanaOdpowiedzUzytkownika);
             String[] lematyzowanaOdpowiedz = lemmatizer.lemmatize(tokens, new String[tokens.length]);
 
+            // Filtrowanie słów nieistotnych
+            List<String> przefiltrowaneSlowaUzytkownika = Arrays.stream(lematyzowanaOdpowiedz)
+                    .filter(slowo -> !stopWords.contains(slowo))
+                    .collect(Collectors.toList());
+
             for (String poprawnaOdpowiedz : odpowiedzi.keySet()) {
-                String[] poprawneTokeny = tokenizer.tokenize(poprawnaOdpowiedz);
+                // Normalizacja poprawnej odpowiedzi (usuwanie spacji i znaków polskich)
+                String znormalizowanaPoprawnaOdpowiedz = normalizujTekst(poprawnaOdpowiedz);
+
+                // Tokenizacja i lematyzacja poprawnej odpowiedzi
+                String[] poprawneTokeny = tokenizer.tokenize(znormalizowanaPoprawnaOdpowiedz);
                 String[] lematyzowanaPoprawnaOdpowiedz = lemmatizer.lemmatize(poprawneTokeny, new String[poprawneTokeny.length]);
 
-                if (Arrays.equals(lematyzowanaOdpowiedz, lematyzowanaPoprawnaOdpowiedz)) {
-                    return poprawnaOdpowiedz;
+                // Filtrowanie słów nieistotnych
+                List<String> przefiltrowaneSlowaOczekiwane = Arrays.stream(lematyzowanaPoprawnaOdpowiedz)
+                        .filter(slowo -> !stopWords.contains(slowo))
+                        .collect(Collectors.toList());
+
+                // Porównanie zbiorów słów
+                if (new HashSet<>(przefiltrowaneSlowaUzytkownika).equals(new HashSet<>(przefiltrowaneSlowaOczekiwane))) {
+                    return poprawnaOdpowiedz; // Zwracamy oryginalną odpowiedź (ze spacjami)
                 }
 
-                LevenshteinDistance levenshtein = new LevenshteinDistance();
-                int distance = levenshtein.apply(String.join(" ", lematyzowanaOdpowiedz), String.join(" ", lematyzowanaPoprawnaOdpowiedz));
-                if (distance <= 2 && Math.abs(lematyzowanaOdpowiedz.length - lematyzowanaPoprawnaOdpowiedz.length) <= 2) {
-                    return poprawnaOdpowiedz;
+                // Tolerancja dla błędów ortograficznych (tylko dla pojedynczych słów)
+                if (przefiltrowaneSlowaUzytkownika.size() == 2 && przefiltrowaneSlowaOczekiwane.size() == 2) {
+                    LevenshteinDistance levenshtein = new LevenshteinDistance();
+                    int distance = levenshtein.apply(przefiltrowaneSlowaUzytkownika.get(0), przefiltrowaneSlowaOczekiwane.get(0));
+                    if (distance <= 2) { // Zwiększona tolerancja
+                        return poprawnaOdpowiedz; // Zwracamy oryginalną odpowiedź (ze spacjami)
+                    }
                 }
             }
         } catch (Exception e) {
@@ -139,5 +165,29 @@ public class Gameplay extends JFrame {
                 odpowiedziLabels[index].setText((index + 1) + ". " + odpowiedz + " (" + punktyOdpowiedzi.get(odpowiedz) + " pkt)");
             }
         });
+    }
+
+    // Metoda do normalizacji tekstu (usuwanie znaków polskich i spacji)
+    private String normalizujTekst(String tekst) {
+        if (tekst == null) {
+            return "";
+        }
+
+        // Zamiana polskich znaków na ich odpowiedniki bez znaków diakrytycznych
+        tekst = tekst.toLowerCase()
+                .replace("ł", "l")
+                .replace("ś", "s")
+                .replace("ż", "z")
+                .replace("ź", "z")
+                .replace("ć", "c")
+                .replace("ń", "n")
+                .replace("ą", "a")
+                .replace("ę", "e")
+                .replace("ó", "o");
+
+        // Usuwanie spacji
+        tekst = tekst.replace(" ", "");
+
+        return tekst;
     }
 }
