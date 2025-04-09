@@ -1,6 +1,6 @@
-package quizpans;
+package org.quizpans;
 
-import quizpans.gui.TeamSetupFrame;
+import org.quizpans.gui.TeamSetupFrame;
 import javax.swing.*;
 
 public class App {

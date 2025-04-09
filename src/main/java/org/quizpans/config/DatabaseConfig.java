@@ -1,4 +1,4 @@
-package quizpans.config;
+package org.quizpans.config;
 
 public class DatabaseConfig {
     private static final String URL = "jdbc:mysql://34.71.86.194:3306/mieszane";

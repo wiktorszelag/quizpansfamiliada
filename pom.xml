@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
@@ -8,18 +9,18 @@
     <version>1.0-SNAPSHOT</version>
 
     <properties>
-        <!-- Zalecane użycie Java 17/LTS dla większej stabilności -->
+        <java.version>17</java.version>
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <!-- Wersje zależności -->
+
         <mysql.connector.version>8.0.33</mysql.connector.version>
         <opennlp.version>2.3.0</opennlp.version>
-        <commons.text.version>1.10.0</commons.text.version>
-    </properties>
+        <commons.text.version>1.12.0</commons.text.version>
+        <flatlaf.version>3.4.1</flatlaf.version>
+        <logback.version>1.2.11</logback.version> </properties>
 
     <dependencies>
-        <!-- Wymagane zależności -->
         <dependency>
             <groupId>mysql</groupId>
             <artifactId>mysql-connector-java</artifactId>
@@ -38,42 +39,17 @@
             <version>${opennlp.version}</version>
         </dependency>
 
-        <!-- Zależności opcjonalne (do usunięcia jeśli nieużywane) -->
         <dependency>
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
-            <version>1.2.11</version>
-            <optional>true</optional>
+            <version>${logback.version}</version>
         </dependency>
 
-        <!-- Zależności do usunięcia (nieużywane w projekcie) -->
-        <!--
         <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
-            <version>2.15.0</version>
+            <groupId>com.formdev</groupId>
+            <artifactId>flatlaf</artifactId>
+            <version>${flatlaf.version}</version>
         </dependency>
-        <dependency>
-            <groupId>org.apache.httpcomponents</groupId>
-            <artifactId>httpclient</artifactId>
-            <version>4.5.13</version>
-        </dependency>
-        <dependency>
-            <groupId>org.json</groupId>
-            <artifactId>json</artifactId>
-            <version>20231013</version>
-        </dependency>
-        <dependency>
-            <groupId>org.typelevel</groupId>
-            <artifactId>spire_2.12</artifactId>
-            <version>0.17.0</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.hadoop</groupId>
-            <artifactId>hadoop-client-runtime</artifactId>
-            <version>3.3.4</version>
-        </dependency>
-        -->
     </dependencies>
 
     <build>
@@ -81,24 +57,42 @@
             <resource>
                 <directory>src/main/resources</directory>
                 <includes>
-                    <include>**/*.bin</include> <!-- Pliki modeli OpenNLP -->
+                    <include>**/*.bin</include>
+                    <include>**/*.txt</include>
                 </includes>
             </resource>
         </resources>
+
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.8.1</version>
+                <version>3.13.0</version>
                 <configuration>
-                    <source>${maven.compiler.source}</source>
-                    <target>${maven.compiler.target}</target>
+                    <source>${java.version}</source>
+                    <target>${java.version}</target>
                 </configuration>
             </plugin>
+
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <version>2.22.2</version>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.5.2</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <transformers>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                    <mainClass>org.quizpans.App</mainClass>
+                                </transformer>
+                            </transformers>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

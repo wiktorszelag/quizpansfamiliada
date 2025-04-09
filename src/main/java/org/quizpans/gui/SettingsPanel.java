@@ -1,4 +1,4 @@
-package quizpans.gui;
+package org.quizpans.gui;
 
 import javax.swing.*;
 

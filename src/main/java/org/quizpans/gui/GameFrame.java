@@ -1,6 +1,6 @@
-package quizpans.gui;
+package org.quizpans.gui;
 
-import quizpans.services.GameService;
+import org.quizpans.services.GameService;
 import javax.swing.*;
 import java.awt.*;
 
@@ -26,33 +26,28 @@ public class GameFrame extends JFrame {
 
     private void initUI() {
         JPanel mainPanel = new JPanel(new BorderLayout());
-
-        // Panel pytania
         JPanel questionPanel = new JPanel(new BorderLayout());
         questionLabel.setFont(new Font("Arial", Font.BOLD, 28));
         questionLabel.setText("Pytanie: " + gameService.getCurrentQuestion());
         questionPanel.add(questionLabel, BorderLayout.CENTER);
 
-        // Panel odpowiedzi
         JPanel answersPanel = new JPanel(new GridLayout(6, 1));
         for (int i = 0; i < 6; i++) {
             answerLabels[i] = createAnswerLabel(i + 1);
             answersPanel.add(answerLabels[i]);
         }
 
-        // Panel wejściowy
         JPanel inputPanel = new JPanel(new BorderLayout());
         inputPanel.add(answerField, BorderLayout.CENTER);
 
         mainPanel.add(questionPanel, BorderLayout.NORTH);
         mainPanel.add(answersPanel, BorderLayout.CENTER);
         mainPanel.add(inputPanel, BorderLayout.SOUTH);
-
         add(mainPanel);
     }
 
     private JLabel createAnswerLabel(int number) {
-        JLabel label = new JLabel(number + ". ****************************************", SwingConstants.CENTER);
+        JLabel label = new JLabel(number + ". ********************************", SwingConstants.CENTER);
         label.setFont(new Font("Arial", Font.BOLD, 24));
         return label;
     }
@@ -71,7 +66,7 @@ public class GameFrame extends JFrame {
         }
 
         gameService.checkAnswer(userAnswer).ifPresentOrElse(
-                correctAnswer -> updateUI(correctAnswer),
+                this::updateUI,
                 () -> showWarning("Minus szansa", "Zła odpowiedź")
         );
     }

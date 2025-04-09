@@ -1,4 +1,4 @@
-package quizpans.utils;
+package org.quizpans.utils;
 
 import opennlp.tools.lemmatizer.LemmatizerME;
 import opennlp.tools.lemmatizer.LemmatizerModel;
@@ -14,11 +14,7 @@ public class NLPProcessor {
     private final LemmatizerME lemmatizer;
 
     public NLPProcessor() {
-        try {
-            InputStream modelStream = getClass().getClassLoader().getResourceAsStream("opennlp-pl-ud-pdb-lemmas-1.2-2.5.0.bin");
-            if (modelStream == null) {
-                throw new IllegalStateException("Nie znaleziono pliku modelu NLP");
-            }
+        try (InputStream modelStream = getClass().getClassLoader().getResourceAsStream("opennlp-pl-ud-pdb-lemmas-1.2-2.5.0.bin")) {
             LemmatizerModel model = new LemmatizerModel(modelStream);
             this.lemmatizer = new LemmatizerME(model);
         } catch (Exception e) {
