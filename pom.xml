@@ -9,46 +9,59 @@
     <version>1.0-SNAPSHOT</version>
 
     <properties>
-        <java.version>17</java.version>
-        <maven.compiler.source>17</maven.compiler.source>
-        <maven.compiler.target>17</maven.compiler.target>
+        <java.version>21</java.version>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
+        <!-- JavaFX -->
+        <javafx.version>21.0.6</javafx.version>
+
+        <!-- Inne zależności -->
         <mysql.connector.version>8.0.33</mysql.connector.version>
         <opennlp.version>2.3.0</opennlp.version>
         <commons.text.version>1.12.0</commons.text.version>
-        <flatlaf.version>3.4.1</flatlaf.version>
-        <logback.version>1.2.11</logback.version> </properties>
+        <logback.version>1.2.11</logback.version>
+    </properties>
 
     <dependencies>
+        <!-- JavaFX -->
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-controls</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-fxml</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-graphics</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
+
+        <!-- Pozostałe zależności -->
         <dependency>
             <groupId>mysql</groupId>
             <artifactId>mysql-connector-java</artifactId>
             <version>${mysql.connector.version}</version>
         </dependency>
-
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-text</artifactId>
             <version>${commons.text.version}</version>
         </dependency>
-
         <dependency>
             <groupId>org.apache.opennlp</groupId>
             <artifactId>opennlp-tools</artifactId>
             <version>${opennlp.version}</version>
         </dependency>
-
         <dependency>
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
             <version>${logback.version}</version>
-        </dependency>
-
-        <dependency>
-            <groupId>com.formdev</groupId>
-            <artifactId>flatlaf</artifactId>
-            <version>${flatlaf.version}</version>
         </dependency>
     </dependencies>
 
@@ -57,6 +70,8 @@
             <resource>
                 <directory>src/main/resources</directory>
                 <includes>
+                    <include>**/*.png</include>
+                    <include>**/*.css</include>
                     <include>**/*.bin</include>
                     <include>**/*.txt</include>
                 </includes>

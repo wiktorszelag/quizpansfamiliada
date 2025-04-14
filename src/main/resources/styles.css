@@ -1,0 +1,62 @@
+/* styles.css */
+.custom-alert {
+    -fx-background-color: linear-gradient(to bottom right, #1a2a6c, #b21f1f);
+    -fx-border-color: gold;
+    -fx-border-width: 2px;
+    -fx-border-radius: 10px;
+    -fx-background-radius: 10px;
+    -fx-padding: 20px;
+}
+
+.custom-alert .label {
+    -fx-text-fill: white;
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+}
+
+.custom-alert .button {
+    -fx-background-color: gold;
+    -fx-text-fill: black;
+    -fx-font-weight: bold;
+    -fx-background-radius: 10px;
+    -fx-padding: 8px 16px;
+}
+
+.custom-alert .button:hover {
+    -fx-background-color: #ffeb3b;
+}
+
+.text-field {
+    -fx-font-size: 16px;
+    -fx-background-radius: 10px;
+    -fx-border-radius: 10px;
+    -fx-padding: 8px 12px;
+}
+
+.combo-box {
+    -fx-font-size: 16px;
+    -fx-background-radius: 10px;
+    -fx-border-radius: 10px;
+}
+/* styles.css */
+.timer-warning {
+    -fx-text-fill: #ff0000;
+    -fx-font-weight: bold;
+    -fx-font-size: 28px;
+}
+
+.timer-normal {
+    -fx-text-fill: gold;
+    -fx-font-weight: bold;
+    -fx-font-size: 28px;
+}
+/* Dodaj na końcu pliku */
+.loading-panel {
+    -fx-alignment: center;
+    -fx-spacing: 20px;
+    -fx-padding: 30px;
+}
+
+.progress-indicator {
+    -fx-progress-color: gold;
+}
