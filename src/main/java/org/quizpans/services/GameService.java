@@ -19,7 +19,7 @@ public class GameService {
         loadQuestion();
     }
 
-    private void loadQuestion() {
+    public void loadQuestion() {
         try (Connection conn = DriverManager.getConnection(DatabaseConfig.getUrl(), DatabaseConfig.getUser(), DatabaseConfig.getPassword());
              Statement stmt = conn.createStatement();
              ResultSet rs = stmt.executeQuery("SELECT * FROM " + category + " ORDER BY RAND() LIMIT 1")) {
@@ -86,5 +86,9 @@ public class GameService {
 
     public String getCurrentQuestion() {
         return currentQuestion;
+    }
+
+    public String getCategory() {
+        return category;
     }
 }

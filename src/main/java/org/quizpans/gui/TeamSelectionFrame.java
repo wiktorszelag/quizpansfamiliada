@@ -62,7 +62,6 @@ public class TeamSelectionFrame {
     }
 
     private void initUI() {
-        // Gradient tła
         LinearGradient gradient = new LinearGradient(
                 0, 0, 1, 1, true, CycleMethod.NO_CYCLE,
                 new Stop(0, Color.web("#1a2a6c")),
@@ -100,19 +99,16 @@ public class TeamSelectionFrame {
                 Insets.EMPTY
         )));
 
-        // Komunikat o ładowaniu
         Label loadingLabel = new Label("Ładowanie gry, przygotowanie pytań...");
         loadingLabel.setFont(Font.font("Arial", FontWeight.NORMAL, 18));
         loadingLabel.setTextFill(Color.WHITE);
 
-        // Etykieta "Rozpoczyna drużyna:"
         Label startingLabel = new Label();
         startingLabel.setFont(Font.font("Arial", FontWeight.BOLD, 24));
         startingLabel.setTextFill(Color.GOLD);
         startingLabel.setEffect(new DropShadow(5, Color.BLACK));
         startingLabel.setVisible(false);
 
-        // Etykieta z nazwą drużyny
         Label teamLabel = new Label();
         teamLabel.setFont(Font.font("Arial", FontWeight.BOLD, 48));
         teamLabel.setTextFill(Color.GOLD);
@@ -171,7 +167,6 @@ public class TeamSelectionFrame {
                     startingLabel.setText("Rozpoczyna drużyna:");
                     startingLabel.setVisible(true);
 
-                    // Animacja podświetlenia
                     FadeTransition ft = new FadeTransition(Duration.millis(300), teamLabel);
                     ft.setFromValue(0.5);
                     ft.setToValue(1.0);
@@ -185,7 +180,8 @@ public class TeamSelectionFrame {
 
     private void startGame() {
         stage.close();
-        GameFrame gameFrame = new GameFrame(selectedCategory, answerTime, team1Name, team2Name);
+        // Teraz przekazujemy 5 argumentów, włączając team1Starts
+        GameFrame gameFrame = new GameFrame(selectedCategory, answerTime, team1Name, team2Name, team1Starts);
         gameFrame.show();
     }
 
