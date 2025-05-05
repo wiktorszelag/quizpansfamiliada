@@ -11,6 +11,7 @@ public class GameService {
     private final Map<String, Integer> answers = new LinkedHashMap<>();
     private final Map<String, Integer> pointsMap = new HashMap<>();
     private final Map<String, String> synonymMap = new HashMap<>();
+    private final Map<String, String> baseFormToOriginalMap = new HashMap<>(); // NOWA MAPA
     private final String category;
     private String currentQuestion;
 
@@ -36,13 +37,15 @@ public class GameService {
         answers.clear();
         pointsMap.clear();
         synonymMap.clear();
+        baseFormToOriginalMap.clear(); // Wyczyść nową mapę
         for (int i = 1; i <= 6; i++) {
-            String answer = rs.getString("odpowiedz" + i);
-            if (answer != null) {
+            String answer = rs.getString("odpowiedz" + i); // Oryginalna odpowiedź
+            if (answer != null && !answer.trim().isEmpty()) { // Sprawdź czy nie jest null lub pusta
                 int points = rs.getInt("punkty" + i);
                 String baseForm = TextNormalizer.normalizeToBaseForm(answer);
                 answers.put(baseForm, 7 - i);
                 pointsMap.put(baseForm, points);
+                baseFormToOriginalMap.put(baseForm, answer.trim()); // Zapisz oryginalną formę
                 loadSynonyms(answer, baseForm);
             }
         }
@@ -82,6 +85,11 @@ public class GameService {
 
     public int getPoints(String answer) {
         return pointsMap.get(answer);
+    }
+
+    // NOWA METODA: Zwraca oryginalną formę odpowiedzi
+    public String getOriginalAnswer(String baseForm) {
+        return baseFormToOriginalMap.getOrDefault(baseForm, baseForm); // Zwróć baseForm jeśli nie ma oryginału
     }
 
     public String getCurrentQuestion() {

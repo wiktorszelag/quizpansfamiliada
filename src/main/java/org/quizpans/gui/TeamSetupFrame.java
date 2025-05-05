@@ -18,7 +18,9 @@ import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 
+import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Collections; // Dodano import
 import java.util.List;
 
 public class TeamSetupFrame {
@@ -38,12 +40,17 @@ public class TeamSetupFrame {
         stage.setTitle("Ustawienia drużyn - Familiada");
 
         try {
-            stage.getIcons().add(new Image(getClass().getResourceAsStream("/logo.png")));
+            InputStream logoStream = getClass().getResourceAsStream("/logo.png");
+            if (logoStream != null) {
+                stage.getIcons().add(new Image(logoStream));
+                logoStream.close();
+            } else {
+                System.err.println("Nie można załadować ikony: /logo.png");
+            }
         } catch (Exception e) {
             System.err.println("Nie można załadować ikony: " + e.getMessage());
         }
 
-        // Initialize components
         teamSizeComboBox = new ComboBox<>();
         categoryComboBox = new ComboBox<>();
         answerTimeSpinner = new Spinner<>(10, 120, 30, 5);
@@ -53,7 +60,6 @@ public class TeamSetupFrame {
         team1MembersPanel = new VBox(10);
         team2MembersPanel = new VBox(10);
 
-        // Initialize panels
         settingsPanel = new VBox(20);
         initializeMainPanel();
         initializeSettingsPanel();
@@ -65,10 +71,10 @@ public class TeamSetupFrame {
             System.err.println("Nie można załadować arkusza stylów: " + e.getMessage());
         }
         stage.setScene(scene);
+        updateTeamMembers();
     }
 
     private void initializeMainPanel() {
-        // Gradient tła
         LinearGradient gradient = new LinearGradient(
                 0, 0, 1, 1, true, CycleMethod.NO_CYCLE,
                 new Stop(0, Color.web("#1a2a6c")),
@@ -80,19 +86,14 @@ public class TeamSetupFrame {
         mainPanel.setAlignment(Pos.TOP_CENTER);
         mainPanel.setBackground(new Background(new BackgroundFill(gradient, CornerRadii.EMPTY, Insets.EMPTY)));
 
-        // Nagłówek
         Label titleLabel = new Label("FAMILIADA");
         titleLabel.setFont(Font.font("Arial", FontWeight.BOLD, 48));
         titleLabel.setTextFill(Color.GOLD);
         titleLabel.setEffect(new DropShadow(15, Color.BLACK));
 
-        // Team 1 panel
         VBox team1Panel = createTeamPanel("Drużyna 1", team1Field, team1MembersPanel);
-
-        // Team 2 panel
         VBox team2Panel = createTeamPanel("Drużyna 2", team2Field, team2MembersPanel);
 
-        // Buttons
         HBox buttonPanel = new HBox(20);
         buttonPanel.setAlignment(Pos.CENTER);
         Button startButton = createStyledButton("Rozpocznij grę", "#4CAF50");
@@ -106,7 +107,6 @@ public class TeamSetupFrame {
                 buttonPanel
         );
 
-        // Event handlers
         startButton.setOnAction(e -> startGame());
         settingsButton.setOnAction(e -> showSettingsPanel());
     }
@@ -116,7 +116,7 @@ public class TeamSetupFrame {
         panel.setAlignment(Pos.CENTER_LEFT);
         panel.setPadding(new Insets(20));
         panel.setBackground(new Background(new BackgroundFill(
-                Color.rgb(255, 255, 255, 0.1),
+                Color.rgb(255, 255, 255, 0.2),
                 new CornerRadii(15),
                 Insets.EMPTY
         )));
@@ -126,7 +126,6 @@ public class TeamSetupFrame {
         teamLabel.setTextFill(Color.WHITE);
 
         teamField.setPromptText("Wprowadź nazwę drużyny");
-        teamField.setStyle("-fx-font-size: 18px; -fx-background-radius: 10;");
         teamField.setPrefHeight(40);
 
         Label membersLabel = new Label("Członkowie drużyny:");
@@ -163,7 +162,6 @@ public class TeamSetupFrame {
     }
 
     private void initializeSettingsPanel() {
-        // Gradient tła
         LinearGradient gradient = new LinearGradient(
                 0, 0, 1, 1, true, CycleMethod.NO_CYCLE,
                 new Stop(0, Color.web("#4b6cb7")),
@@ -174,22 +172,19 @@ public class TeamSetupFrame {
         settingsPanel.setAlignment(Pos.TOP_CENTER);
         settingsPanel.setBackground(new Background(new BackgroundFill(gradient, CornerRadii.EMPTY, Insets.EMPTY)));
 
-        // Nagłówek
         Label titleLabel = new Label("USTAWIENIA");
         titleLabel.setFont(Font.font("Arial", FontWeight.BOLD, 36));
         titleLabel.setTextFill(Color.WHITE);
         titleLabel.setEffect(new DropShadow(10, Color.BLACK));
 
-        // Initialize combo boxes
         teamSizeComboBox.getItems().addAll(1, 2, 3, 4, 5, 6);
         teamSizeComboBox.getSelectionModel().selectFirst();
+        // TODO: Kategorie powinny być ładowane dynamicznie, np. z bazy danych lub konfiguracji
         categoryComboBox.getItems().addAll("Testowa1", "Testowa2");
         categoryComboBox.getSelectionModel().selectFirst();
 
-        // Add settings components
         SettingsPanel settingsContent = new SettingsPanel(teamSizeComboBox, categoryComboBox, answerTimeSpinner);
 
-        // Back button
         Button backButton = createStyledButton("Wróć", "#f44336");
         backButton.setOnAction(e -> {
             updateTeamMembers();
@@ -217,7 +212,6 @@ public class TeamSetupFrame {
 
             TextField playerField = new TextField();
             playerField.setPromptText("Imię gracza");
-            playerField.setStyle("-fx-font-size: 16px; -fx-background-radius: 10;");
             playerField.setPrefHeight(35);
 
             playerRow.getChildren().addAll(playerLabel, playerField);
@@ -225,35 +219,42 @@ public class TeamSetupFrame {
         }
     }
 
+    // ZMODYFIKOWANA METODA startGame
     private void startGame() {
         String team1Name = team1Field.getText().trim();
         String team2Name = team2Field.getText().trim();
 
-        if (team1Name.isEmpty() || team2Name.isEmpty()) {
-            showErrorAlert("Proszę wypełnić nazwy drużyn", "Błąd");
-            return;
+        if (team1Name.isEmpty()) team1Name = "Drużyna 1";
+        if (team2Name.isEmpty()) team2Name = "Drużyna 2";
+
+        List<String> team1Members = getMembers(team1MembersPanel, 1); // Przekaż numer drużyny
+        List<String> team2Members = getMembers(team2MembersPanel, 2); // Przekaż numer drużyny
+
+        if (team1Members.isEmpty() || team2Members.isEmpty()) {
+            showErrorAlert("Obie drużyny muszą mieć co najmniej jednego gracza.", "Błąd");
+            return; // Nie kontynuuj, jeśli któraś drużyna jest pusta
         }
 
-        List<String> team1Members = getMembers(team1MembersPanel);
-        List<String> team2Members = getMembers(team2MembersPanel);
+        int answerTime = answerTimeSpinner.getValue();
 
-        if (team1Members != null && team2Members != null) {
-            int answerTime = answerTimeSpinner.getValue();
+        FadeTransition fadeOut = new FadeTransition(Duration.millis(500), stage.getScene().getRoot());
+        fadeOut.setFromValue(1.0);
+        fadeOut.setToValue(0.0);
+        String finalTeam1Name = team1Name;
+        String finalTeam2Name = team2Name;
+        fadeOut.setOnFinished(e -> {
+            stage.close();
+            // ZMIANA: Przekazanie list graczy do TeamSelectionFrame
+            new TeamSelectionFrame(categoryComboBox.getValue(), answerTime, finalTeam1Name, finalTeam2Name, team1Members, team2Members).show();
+        });
+        fadeOut.play();
 
-            // Płynne przejście i zamknięcie bieżącego okna
-            FadeTransition fadeOut = new FadeTransition(Duration.millis(500), stage.getScene().getRoot());
-            fadeOut.setFromValue(1.0);
-            fadeOut.setToValue(0.0);
-            fadeOut.setOnFinished(e -> {
-                stage.close(); // ZAMKNIJ obecne okno przed otwarciem nowego
-                new TeamSelectionFrame(categoryComboBox.getValue(), answerTime, team1Name, team2Name).show();
-            });
-            fadeOut.play();
-        }
     }
 
-    private List<String> getMembers(VBox panel) {
+    // ZMODYFIKOWANA METODA getMembers
+    private List<String> getMembers(VBox panel, int teamNumber) {
         List<String> members = new ArrayList<>();
+        int playerIndex = 1;
         for (javafx.scene.Node node : panel.getChildren()) {
             if (node instanceof HBox) {
                 HBox row = (HBox) node;
@@ -261,16 +262,27 @@ public class TeamSetupFrame {
                     if (child instanceof TextField) {
                         String name = ((TextField) child).getText().trim();
                         if (name.isEmpty()) {
-                            showErrorAlert("Wprowadź nazwy wszystkich graczy", "Błąd");
-                            return null;
+                            // Jeśli imię jest puste, nadaj domyślną nazwę "Gracz X (D Y)"
+                            name = "Gracz " + playerIndex + " (D" + teamNumber + ")";
                         }
                         members.add(name);
+                        playerIndex++;
                     }
                 }
             }
         }
+        // Jeśli po iteracji lista jest pusta (bo np. ComboBox był ustawiony na 0?)
+        // dodajmy jednego domyślnego gracza, aby uniknąć błędów dzielenia przez zero itp.
+        if (members.isEmpty() && panel.getChildren().size() > 0) { // Dodaj tylko jeśli były jakieś pola
+            members.add("Gracz 1 (D" + teamNumber + ")");
+        } else if (members.isEmpty()) {
+            // Jeśli nie było pól (ComboBox = 0), zwróć pustą listę.
+            // Chociaż ComboBox zaczyna się od 1, lepiej to obsłużyć.
+            return Collections.emptyList();
+        }
         return members;
     }
+
 
     private void showErrorAlert(String message, String title) {
         Alert alert = new Alert(Alert.AlertType.ERROR);
@@ -307,9 +319,11 @@ public class TeamSetupFrame {
 
     public void show() {
         stage.show();
-        FadeTransition ft = new FadeTransition(Duration.millis(500), stage.getScene().getRoot());
-        ft.setFromValue(0);
-        ft.setToValue(1);
-        ft.play();
+        if (stage.getScene() != null && stage.getScene().getRoot() != null) {
+            FadeTransition ft = new FadeTransition(Duration.millis(500), stage.getScene().getRoot());
+            ft.setFromValue(0);
+            ft.setToValue(1);
+            ft.play();
+        }
     }
 }

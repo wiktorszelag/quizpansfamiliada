@@ -9,6 +9,8 @@ import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.Label;
 import javafx.scene.control.ProgressIndicator;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Alert.AlertType;
 import javafx.scene.effect.DropShadow;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
@@ -23,6 +25,8 @@ import javafx.stage.Stage;
 import javafx.util.Duration;
 import org.quizpans.services.GameService;
 
+import java.io.InputStream;
+import java.util.List;
 import java.util.Random;
 
 public class TeamSelectionFrame {
@@ -31,15 +35,23 @@ public class TeamSelectionFrame {
     private final int answerTime;
     private final String team1Name;
     private final String team2Name;
+    private final List<String> team1Members;
+    private final List<String> team2Members;
     private GameService gameService;
     private boolean team1Starts;
 
-    public TeamSelectionFrame(String selectedCategory, int answerTime, String team1Name, String team2Name) {
+    // NOWE FLAGI do synchronizacji
+    private volatile boolean animationComplete = false;
+    private volatile boolean loadingComplete = false;
+
+    public TeamSelectionFrame(String selectedCategory, int answerTime, String team1Name, String team2Name, List<String> team1Members, List<String> team2Members) {
         this.stage = new Stage();
         this.selectedCategory = selectedCategory;
         this.answerTime = answerTime;
         this.team1Name = team1Name;
         this.team2Name = team2Name;
+        this.team1Members = team1Members;
+        this.team2Members = team2Members;
         initializeFrame();
         initUI();
 
@@ -47,15 +59,36 @@ public class TeamSelectionFrame {
     }
 
     private void initializeGameService() {
-        this.gameService = new GameService(selectedCategory);
-        Platform.runLater(this::startGame);
+        try {
+            this.gameService = new GameService(selectedCategory);
+            loadingComplete = true; // Ustaw flagę zakończenia ładowania
+            Platform.runLater(this::attemptProceedToGame); // Spróbuj przejść dalej (z wątku UI)
+        } catch (Exception e) {
+            System.err.println("Krytyczny błąd inicjalizacji GameService: " + e.getMessage());
+            e.printStackTrace();
+            Platform.runLater(() -> {
+                Alert alert = new Alert(AlertType.ERROR);
+                alert.setTitle("Błąd krytyczny");
+                alert.setHeaderText("Nie można załadować danych gry!");
+                alert.setContentText("Wystąpił błąd podczas ładowania pytań lub usługi gry.\nSprawdź połączenie z bazą danych i konfigurację.\n\n" + e.getMessage());
+                alert.showAndWait();
+                stage.close();
+            });
+        }
     }
+
 
     private void initializeFrame() {
         stage.setTitle("Familiada - Wybór drużyny rozpoczynającej");
         stage.setMaximized(true);
         try {
-            stage.getIcons().add(new Image(getClass().getResourceAsStream("/logo.png")));
+            InputStream logoStream = getClass().getResourceAsStream("/logo.png");
+            if (logoStream != null) {
+                stage.getIcons().add(new Image(logoStream));
+                logoStream.close();
+            } else {
+                System.err.println("Nie można załadować ikony aplikacji: /logo.png");
+            }
         } catch (Exception e) {
             System.err.println("Nie można załadować ikony: " + e.getMessage());
         }
@@ -73,23 +106,11 @@ public class TeamSelectionFrame {
         mainPane.setPadding(new Insets(30));
         mainPane.setBackground(new Background(new BackgroundFill(gradient, CornerRadii.EMPTY, Insets.EMPTY)));
 
-        // Logo
-        ImageView logo = new ImageView();
-        try {
-            logo.setImage(new Image(getClass().getResourceAsStream("/logo_small.png")));
-            logo.setFitHeight(120);
-            logo.setPreserveRatio(true);
-        } catch (Exception e) {
-            System.err.println("Nie można załadować logo: " + e.getMessage());
-        }
-
-        // Nagłówek
         Label titleLabel = new Label("PRZYGOTOWYWANIE GRY");
         titleLabel.setFont(Font.font("Arial", FontWeight.BOLD, 36));
         titleLabel.setTextFill(Color.WHITE);
         titleLabel.setEffect(new DropShadow(15, Color.BLACK));
 
-        // Panel z informacją o ładowaniu
         VBox loadingPanel = new VBox(15);
         loadingPanel.setAlignment(Pos.CENTER);
         loadingPanel.setPadding(new Insets(30));
@@ -126,12 +147,11 @@ public class TeamSelectionFrame {
         );
 
         mainPane.getChildren().addAll(
-                logo,
                 titleLabel,
                 loadingPanel
         );
 
-        startSelectionAnimation(startingLabel, teamLabel);
+        startSelectionAnimation(startingLabel, teamLabel); // Rozpocznij animację
 
         Scene scene = new Scene(mainPane);
         try {
@@ -142,6 +162,7 @@ public class TeamSelectionFrame {
         stage.setScene(scene);
     }
 
+    // ZMODYFIKOWANA METODA startSelectionAnimation
     private void startSelectionAnimation(Label startingLabel, Label teamLabel) {
         Random random = new Random();
         this.team1Starts = random.nextBoolean();
@@ -175,21 +196,36 @@ public class TeamSelectionFrame {
                     ft.play();
                 })
         );
-        animation.play();
+        // ZMIANA: Ustawienie akcji po zakończeniu animacji
+        animation.setOnFinished(event -> {
+            animationComplete = true; // Ustaw flagę zakończenia animacji
+            attemptProceedToGame(); // Spróbuj przejść dalej
+        });
+
+        animation.play(); // Uruchom animację
     }
 
-    private void startGame() {
-        stage.close();
-        // Teraz przekazujemy 5 argumentów, włączając team1Starts
-        GameFrame gameFrame = new GameFrame(selectedCategory, answerTime, team1Name, team2Name, team1Starts);
-        gameFrame.show();
+    // NOWA METODA do próby przejścia do gry
+    private synchronized void attemptProceedToGame() {
+        // Sprawdź, czy obie flagi są true i czy gameService istnieje
+        if (animationComplete && loadingComplete && gameService != null && gameService.getCurrentQuestion() != null) {
+            stage.close();
+            GameFrame gameFrame = new GameFrame(selectedCategory, answerTime, team1Name, team2Name, team1Starts, this.team1Members, this.team2Members);
+            gameFrame.show();
+        }
+        // Jeśli któraś flaga jest false, nic nie rób - druga operacja (ładowanie lub animacja) musi się zakończyć
+        // i ona również wywoła tę metodę.
     }
+
+    // Usunięto starą metodę startGame() - jej logika jest teraz w attemptProceedToGame()
 
     public void show() {
         stage.show();
-        FadeTransition ft = new FadeTransition(Duration.millis(500), stage.getScene().getRoot());
-        ft.setFromValue(0);
-        ft.setToValue(1);
-        ft.play();
+        if (stage.getScene() != null && stage.getScene().getRoot() != null) {
+            FadeTransition ft = new FadeTransition(Duration.millis(500), stage.getScene().getRoot());
+            ft.setFromValue(0);
+            ft.setToValue(1);
+            ft.play();
+        }
     }
 }

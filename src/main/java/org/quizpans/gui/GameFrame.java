@@ -2,12 +2,17 @@ package org.quizpans.gui;
 
 import javafx.animation.FadeTransition;
 import javafx.animation.KeyFrame;
+import javafx.animation.ScaleTransition;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.geometry.HPos;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
+import javafx.scene.control.OverrunStyle;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Alert.AlertType;
 import javafx.scene.effect.DropShadow;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
@@ -23,14 +28,18 @@ import javafx.util.Duration;
 import org.quizpans.services.GameService;
 import org.quizpans.utils.TextNormalizer;
 
+import java.io.InputStream;
 import java.util.HashSet;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Optional;
 import java.util.Set;
 
 public class GameFrame {
     private final Stage stage;
     private GameService gameService;
-    private final Label[] answerLabels = new Label[6];
+    private final BorderPane[] answerPanes = new BorderPane[6];
     private final TextField answerField = new TextField();
     private final Label questionLabel = new Label();
     private final Label timerLabel = new Label();
@@ -45,6 +54,13 @@ public class GameFrame {
     private final String selectedCategory;
     private final String team1Name;
     private final String team2Name;
+    private final List<String> team1Members;
+    private final List<String> team2Members;
+    private int team1PlayerIndex = 0;
+    private int team2PlayerIndex = 0;
+    private Label currentPlayerLabel;
+
+    private static final String HIDDEN_ANSWER_PLACEHOLDER = "■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■";
 
     private int roundPoints = 0;
     private Timeline timer;
@@ -67,7 +83,7 @@ public class GameFrame {
     private int team1Errors = 0;
     private int team2Errors = 0;
 
-    public GameFrame(String selectedCategory, int answerTime, String team1Name, String team2Name, boolean isTeam1Turn) {
+    public GameFrame(String selectedCategory, int answerTime, String team1Name, String team2Name, boolean isTeam1Turn, List<String> team1Members, List<String> team2Members) {
         this.stage = new Stage();
         this.selectedCategory = selectedCategory;
         this.initialAnswerTime = answerTime;
@@ -75,64 +91,80 @@ public class GameFrame {
         this.isTeam1Turn = isTeam1Turn;
         this.team1Name = team1Name;
         this.team2Name = team2Name;
+        this.team1Members = (team1Members != null && !team1Members.isEmpty()) ? new ArrayList<>(team1Members) : Collections.singletonList("Gracz 1 (D1)");
+        this.team2Members = (team2Members != null && !team2Members.isEmpty()) ? new ArrayList<>(team2Members) : Collections.singletonList("Gracz 1 (D2)");
+
         this.gameService = new GameService(selectedCategory);
         this.team1Label = createTeamLabel(team1Name);
         this.team2Label = createTeamLabel(team2Name);
         this.team1TotalLabel = createTotalScoreLabel();
         this.team2TotalLabel = createTotalScoreLabel();
-        this.team1ErrorsPanel = createErrorsPanel(true);  // Lewy panel
-        this.team2ErrorsPanel = createErrorsPanel(false); // Prawy panel
+        this.team1ErrorsPanel = createErrorsPanel(true);
+        this.team2ErrorsPanel = createErrorsPanel(false);
         initializeFrame();
         initUI();
         updateTeamLabels();
+        updateCurrentPlayerLabel();
         startTimer();
         usedQuestions.add(TextNormalizer.normalizeToBaseForm(gameService.getCurrentQuestion()));
     }
 
-
     private VBox createErrorsPanel(boolean isLeftPanel) {
-        VBox panel = new VBox(25);
-        panel.setAlignment(isLeftPanel ? Pos.CENTER_LEFT : Pos.CENTER_RIGHT);
+        VBox panel = new VBox(30);
         panel.setPadding(new Insets(20));
-        panel.getStyleClass().add(isLeftPanel ? "error-panel-left" : "error-panel-right");
 
         for (int i = 0; i < 3; i++) {
             Label errorLabel = new Label("");
             errorLabel.getStyleClass().add("error-circle-empty");
-            errorLabel.setMinSize(70, 70);
+            errorLabel.setMinSize(95, 95);
             errorLabel.setAlignment(Pos.CENTER);
             panel.getChildren().add(errorLabel);
         }
+        panel.getStyleClass().add(isLeftPanel ? "error-panel-left" : "error-panel-right");
 
         return panel;
     }
 
     private void updateErrorsPanel(VBox panel, int errors) {
+        if (panel == null || panel.getChildren().isEmpty()) {
+            System.err.println("Błąd: Próba aktualizacji niezainicjalizowanego lub pustego panelu błędów.");
+            return;
+        }
+
         for (int i = 0; i < panel.getChildren().size(); i++) {
+            if (!(panel.getChildren().get(i) instanceof Label)) continue;
+
             Label label = (Label) panel.getChildren().get(i);
-            if (i < errors) {
-                label.setText("X");
-                label.getStyleClass().remove("error-circle-empty");
-                label.getStyleClass().add("error-circle");
+            boolean shouldBeFilled = i < errors;
+            boolean wasFilled = label.getStyleClass().contains("error-circle");
 
-                // Animacja dla nowo dodanego błędu
-                if (i == errors - 1) {
-                    FadeTransition ft = new FadeTransition(Duration.millis(300), label);
-                    ft.setFromValue(0);
-                    ft.setToValue(1);
-                    ft.play();
 
-                    label.setScaleX(1.3);
-                    label.setScaleY(1.3);
-                    javafx.animation.ScaleTransition st = new javafx.animation.ScaleTransition(Duration.millis(300), label);
-                    st.setToX(1.0);
-                    st.setToY(1.0);
-                    st.play();
+            if (shouldBeFilled) {
+                if (!wasFilled) {
+                    label.getStyleClass().remove("error-circle-empty");
+                    label.getStyleClass().add("error-circle");
+                    label.setText("X");
+
+                    if (i == errors - 1) {
+                        FadeTransition ft = new FadeTransition(Duration.millis(300), label);
+                        ft.setFromValue(0);
+                        ft.setToValue(1);
+                        ft.play();
+
+                        label.setScaleX(1.3);
+                        label.setScaleY(1.3);
+                        ScaleTransition st = new ScaleTransition(Duration.millis(300), label);
+                        st.setToX(1.0);
+                        st.setToY(1.0);
+                        st.play();
+                    }
                 }
             } else {
-                label.setText("");
-                label.getStyleClass().remove("error-circle");
-                label.getStyleClass().add("error-circle-empty");
+                if (wasFilled) {
+                    label.getStyleClass().remove("error-circle");
+                    label.getStyleClass().add("error-circle-empty");
+                    label.setText("");
+                }
             }
         }
     }
@@ -169,13 +201,40 @@ public class GameFrame {
         team2TotalLabel.setText(String.valueOf(team2Score));
     }
 
+    private void updateCurrentPlayerLabel() {
+        String currentPlayerName;
+        if (isTeam1Turn) {
+            if (!team1Members.isEmpty()) {
+                currentPlayerName = team1Members.get(team1PlayerIndex);
+            } else {
+                currentPlayerName = team1Name;
+            }
+        } else {
+            if (!team2Members.isEmpty()) {
+                currentPlayerName = team2Members.get(team2PlayerIndex);
+            } else {
+                currentPlayerName = team2Name;
+            }
+        }
+        if (currentPlayerLabel != null) {
+            currentPlayerLabel.setText("Odpowiada teraz: " + currentPlayerName);
+        }
+    }
+
+
     private void initializeFrame() {
         stage.setTitle("Familiada - Nowoczesna Wersja");
         stage.setMaximized(true);
         try {
-            stage.getIcons().add(new Image(getClass().getResourceAsStream("/logo.png")));
+            InputStream logoStream = getClass().getResourceAsStream("/logo.png");
+            if (logoStream != null) {
+                stage.getIcons().add(new Image(logoStream));
+                logoStream.close();
+            } else {
+                System.err.println("Nie można załadować ikony aplikacji: /logo.png");
+            }
         } catch (Exception e) {
-            System.err.println("Nie można załadować ikony: " + e.getMessage());
+            System.err.println("Nie można załadować ikony aplikacji: " + e.getMessage());
         }
     }
 
@@ -190,23 +249,15 @@ public class GameFrame {
         mainPane.setBackground(new Background(new BackgroundFill(gradient, CornerRadii.EMPTY, Insets.EMPTY)));
         mainPane.setPadding(new Insets(20));
 
-        // Górny panel
         VBox topPanel = new VBox(15);
         topPanel.setAlignment(Pos.CENTER);
-
-        ImageView logo = new ImageView();
-        try {
-            logo.setImage(new Image(getClass().getResourceAsStream("/logo_small.png")));
-            logo.setFitHeight(90);
-            logo.setPreserveRatio(true);
-        } catch (Exception e) {
-            System.err.println("Nie można załadować logo: " + e.getMessage());
-        }
 
         questionLabel.setText(gameService.getCurrentQuestion() + (gameService.getCurrentQuestion().endsWith("?") ? "" : "?"));
         questionLabel.setFont(Font.font("Arial", FontWeight.BOLD, 36));
         questionLabel.setTextFill(Color.WHITE);
         questionLabel.setEffect(new DropShadow(15, Color.BLACK));
+        questionLabel.setWrapText(true);
+        questionLabel.setAlignment(Pos.CENTER);
 
         HBox timerBox = new HBox(25);
         timerBox.setAlignment(Pos.CENTER);
@@ -219,54 +270,61 @@ public class GameFrame {
         roundPointsLabel.setEffect(new DropShadow(10, Color.BLACK));
 
         timerBox.getChildren().addAll(timerLabel, roundPointsLabel);
-        topPanel.getChildren().addAll(logo, questionLabel, timerBox);
+        topPanel.getChildren().addAll(questionLabel, timerBox);
         mainPane.setTop(topPanel);
+        BorderPane.setMargin(topPanel, new Insets(20, 0, 20, 0));
 
-        // Główny kontener z panelami błędów i odpowiedziami
-        HBox centerContainer = new HBox();
+        GridPane centerContainer = new GridPane();
         centerContainer.setAlignment(Pos.CENTER);
+        centerContainer.setHgap(15);
 
-        // Lewy panel błędów - drużyna 1
+        ColumnConstraints col1 = new ColumnConstraints();
+        col1.setPercentWidth(15);
+        col1.setHalignment(HPos.CENTER);
+
+        ColumnConstraints col2 = new ColumnConstraints();
+        col2.setPercentWidth(70);
+        col2.setHalignment(HPos.CENTER);
+
+        ColumnConstraints col3 = new ColumnConstraints();
+        col3.setPercentWidth(15);
+        col3.setHalignment(HPos.CENTER);
+
+        centerContainer.getColumnConstraints().addAll(col1, col2, col3);
+
         StackPane leftErrorPane = new StackPane(team1ErrorsPanel);
-        leftErrorPane.setPadding(new Insets(0, 30, 0, 30));
-        leftErrorPane.setAlignment(Pos.CENTER_LEFT);
+        leftErrorPane.setAlignment(Pos.CENTER);
 
-        // Prawy panel błędów - drużyna 2
         StackPane rightErrorPane = new StackPane(team2ErrorsPanel);
-        rightErrorPane.setPadding(new Insets(0, 30, 0, 30));
-        rightErrorPane.setAlignment(Pos.CENTER_RIGHT);
+        rightErrorPane.setAlignment(Pos.CENTER);
 
-        // Panel odpowiedzi
-        VBox answersPanel = new VBox(20);
+        VBox answersPanel = new VBox(15);
         answersPanel.setAlignment(Pos.CENTER);
-        answersPanel.setPadding(new Insets(25));
-        answersPanel.setBackground(new Background(new BackgroundFill(
-                Color.rgb(255, 255, 255, 0.25),
-                new CornerRadii(20),
-                Insets.EMPTY
-        )));
-        answersPanel.setPrefWidth(800);
+        answersPanel.setPadding(new Insets(20));
+        answersPanel.getStyleClass().add("answer-panel");
 
         for (int i = 0; i < 6; i++) {
-            answerLabels[i] = createAnswerLabel(i + 1);
-            answersPanel.getChildren().add(answerLabels[i]);
+            answerPanes[i] = createAnswerPane(i + 1);
+            answersPanel.getChildren().add(answerPanes[i]);
         }
 
-        team1ErrorsPanel.setPrefWidth(180);
-        team2ErrorsPanel.setPrefWidth(180);
-
-        centerContainer.getChildren().addAll(leftErrorPane, answersPanel, rightErrorPane);
-
-        HBox.setHgrow(leftErrorPane, Priority.ALWAYS);
-        HBox.setHgrow(answersPanel, Priority.NEVER);
-        HBox.setHgrow(rightErrorPane, Priority.ALWAYS);
+        centerContainer.add(leftErrorPane, 0, 0);
+        centerContainer.add(answersPanel, 1, 0);
+        centerContainer.add(rightErrorPane, 2, 0);
 
         mainPane.setCenter(centerContainer);
 
-        // Dolny panel
-        HBox inputContainer = new HBox(25);
-        inputContainer.setAlignment(Pos.CENTER);
-        inputContainer.setPadding(new Insets(30, 0, 0, 0));
+        VBox bottomContainer = new VBox(15);
+        bottomContainer.setAlignment(Pos.CENTER);
+        bottomContainer.setPadding(new Insets(20, 0, 20, 0));
+
+        currentPlayerLabel = new Label("Odpowiada teraz: ...");
+        currentPlayerLabel.setFont(Font.font("Arial", FontWeight.BOLD, 22));
+        currentPlayerLabel.setTextFill(Color.WHITE);
+        currentPlayerLabel.setEffect(new DropShadow(5, Color.BLACK));
+
+        HBox inputAndScoresBox = new HBox(25);
+        inputAndScoresBox.setAlignment(Pos.CENTER);
 
         VBox team1Box = new VBox(10, team1Label, team1TotalLabel);
         team1Box.setAlignment(Pos.CENTER_LEFT);
@@ -275,7 +333,6 @@ public class GameFrame {
         answerField.setPrefWidth(450);
         answerField.setPrefHeight(60);
         answerField.setFont(Font.font("Arial", 24));
-        answerField.setStyle("-fx-background-radius: 15; -fx-border-radius: 15;");
         answerField.setPromptText("Wpisz odpowiedź i naciśnij Enter");
         answerField.setOnAction(e -> processAnswer());
 
@@ -283,53 +340,60 @@ public class GameFrame {
         team2Box.setAlignment(Pos.CENTER_RIGHT);
         team2Box.setPadding(new Insets(0, 30, 0, 0));
 
-        inputContainer.getChildren().addAll(team1Box, answerField, team2Box);
+        inputAndScoresBox.getChildren().addAll(team1Box, answerField, team2Box);
         HBox.setHgrow(team1Box, Priority.ALWAYS);
+        HBox.setHgrow(answerField, Priority.NEVER);
         HBox.setHgrow(team2Box, Priority.ALWAYS);
-        mainPane.setBottom(inputContainer);
+
+        bottomContainer.getChildren().addAll(currentPlayerLabel, inputAndScoresBox);
+
+        mainPane.setBottom(bottomContainer);
 
         Scene scene = new Scene(mainPane);
         try {
-            scene.getStylesheets().add(getClass().getResource("/styles.css").toExternalForm());
+            String cssPath = getClass().getResource("/styles.css").toExternalForm();
+            scene.getStylesheets().add(cssPath);
         } catch (Exception e) {
-            System.err.println("Nie można załadować arkusza stylów: " + e.getMessage());
+            System.err.println("Nie można załadować arkusza stylów: /styles.css. " + e.getMessage());
         }
         stage.setScene(scene);
     }
 
-    private Label createAnswerLabel(int number) {
-        Label label = new Label(number + ". ⛌⛌⛌⛌⛌⛌⛌⛌⛌⛌⛌⛌⛌⛌⛌⛌⛌⛌⛌");
-        label.setFont(Font.font("Arial", FontWeight.BOLD, 32));
-        label.setTextFill(Color.WHITE);
-        label.setEffect(new DropShadow(10, Color.BLACK));
-        label.setAlignment(Pos.CENTER_LEFT);
-        label.setPrefWidth(750);
-        label.setPadding(new Insets(15, 25, 15, 25));
-        label.setBackground(new Background(new BackgroundFill(
-                Color.rgb(0, 0, 0, 0.4),
-                new CornerRadii(15),
-                Insets.EMPTY
-        )));
 
-        FadeTransition ft = new FadeTransition(Duration.millis(500), label);
+    private BorderPane createAnswerPane(int number) {
+        BorderPane pane = new BorderPane();
+        pane.getStyleClass().add("answer-pane");
+
+        Label placeholderLabel = new Label(number + ". " + HIDDEN_ANSWER_PLACEHOLDER);
+        placeholderLabel.setTextOverrun(OverrunStyle.CLIP);
+        placeholderLabel.getStyleClass().add("answer-text-label");
+        placeholderLabel.getStyleClass().add("hidden");
+
+        pane.setCenter(placeholderLabel);
+        BorderPane.setAlignment(placeholderLabel, Pos.CENTER_LEFT);
+
+        FadeTransition ft = new FadeTransition(Duration.millis(500), pane);
         ft.setFromValue(0);
         ft.setToValue(1);
         ft.play();
 
-        return label;
+        return pane;
     }
 
-    private void resetAnswerLabel(int index) {
-        answerLabels[index].setText((index + 1) + ". ⛌⛌⛌⛌⛌⛌⛌⛌⛌⛌⛌⛌⛌⛌⛌⛌⛌⛌⛌");
-        answerLabels[index].setTextFill(Color.WHITE);
-        answerLabels[index].setBackground(new Background(new BackgroundFill(
-                Color.rgb(0, 0, 0, 0.4),
-                new CornerRadii(15),
-                Insets.EMPTY
-        )));
-        answerLabels[index].setEffect(new DropShadow(10, Color.BLACK));
+    private void resetAnswerPane(int index) {
+        BorderPane pane = answerPanes[index];
+        pane.getStyleClass().remove("answer-revealed");
 
-        FadeTransition ft = new FadeTransition(Duration.millis(500), answerLabels[index]);
+        Label placeholderLabel = new Label((index + 1) + ". " + HIDDEN_ANSWER_PLACEHOLDER);
+        placeholderLabel.setTextOverrun(OverrunStyle.CLIP);
+        placeholderLabel.getStyleClass().clear();
+        placeholderLabel.getStyleClass().addAll("answer-text-label", "hidden");
+
+        pane.setCenter(placeholderLabel);
+        pane.setRight(null);
+        BorderPane.setAlignment(placeholderLabel, Pos.CENTER_LEFT);
+
+        FadeTransition ft = new FadeTransition(Duration.millis(500), pane);
         ft.setFromValue(0);
         ft.setToValue(1);
         ft.play();
@@ -339,6 +403,8 @@ public class GameFrame {
         if (timer != null) {
             timer.stop();
         }
+        timeLeft = initialAnswerTime;
+        updateTimerDisplay();
 
         timer = new Timeline(
                 new KeyFrame(Duration.seconds(1), e -> {
@@ -357,188 +423,291 @@ public class GameFrame {
 
     private void updateTimerDisplay() {
         timerLabel.setText("Czas: " + timeLeft + "s");
+        timerLabel.getStyleClass().removeAll("timer-critical", "timer-normal");
         if (timeLeft <= 10) {
-            timerLabel.setTextFill(Color.RED);
-            timerLabel.setStyle("-fx-effect: dropshadow(three-pass-box, rgba(255,0,0,0.8), 10, 0, 0, 0);");
+            timerLabel.getStyleClass().add("timer-critical");
         } else {
-            timerLabel.setTextFill(Color.GOLD);
-            timerLabel.setStyle("-fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.8), 10, 0, 0, 0);");
+            timerLabel.getStyleClass().add("timer-normal");
         }
     }
 
     private void processAnswer() {
-        if (gameFinished) return;
+        if (gameFinished || answerField.isDisabled()) return;
 
         String userAnswer = answerField.getText().trim();
         answerField.clear();
 
+        boolean teamHadControl = hasControl;
+        boolean wasStealOpportunity = stealOpportunity;
+
         if (userAnswer.isEmpty()) {
+            showInfo("Pusta odpowiedź! Liczymy jako błąd.");
             registerError();
-            return;
-        }
-
-        Optional<String> correctAnswer = gameService.checkAnswer(userAnswer);
-        if (correctAnswer.isPresent()) {
-            handleCorrectAnswer(correctAnswer.get());
         } else {
-            registerError();
-        }
-    }
-
-    private void handleCorrectAnswer(String correctAnswer) {
-        int points = gameService.getPoints(correctAnswer);
-        int position = gameService.getAnswerPosition(correctAnswer);
-
-        if (firstAnswerInRound) {
-            firstAnswerInRound = false;
-            firstTeamAnswer = correctAnswer;
-            firstTeamAnswerPosition = position;
-            firstTeamAnswerPoints = points;
-
-            revealAnswer(correctAnswer, points, position);
-            lastRevealedPosition = position;
-
-            if (position != 0) {
-                showInfo("Drużyna " + getOpponentTeamName() + " może spróbować przejąć kontrolę!");
-                switchTeam();
+            Optional<String> correctAnswerOpt = gameService.checkAnswer(userAnswer);
+            if (correctAnswerOpt.isPresent()) {
+                handleCorrectAnswer(correctAnswerOpt.get());
             } else {
-                hasControl = true;
-                currentTeamErrors = 0;
-                roundPoints += points;
-                roundPointsLabel.setText("Pkt: " + roundPoints);
-                revealedAnswers++;
+                registerError();
             }
-            return;
         }
 
-        if (!hasControl && position < firstTeamAnswerPosition) {
-            hasControl = true;
-            currentTeamErrors = 0;
-            showInfo("Drużyna " + (isTeam1Turn ? team1Label.getText() : team2Label.getText()) + " przejęła kontrolę!");
+        if (!gameFinished) {
+            boolean wasFirstAnswer = firstAnswerInRound; // Sprawdź *przed* potencjalnym ustawieniem w handleCorrectAnswer
+            boolean controlGained = !teamHadControl && hasControl; // Czy kontrola została właśnie zdobyta?
+            boolean stealFailed = wasStealOpportunity && !gameFinished; // Czy była kradzież i nie zakończyła rundy (czyli była błędna)?
 
-            revealAnswer(correctAnswer, points, position);
-            roundPoints = firstTeamAnswerPoints + points;
-            roundPointsLabel.setText("Pkt: " + roundPoints);
-            revealedAnswers += 2;
-
-            resetTimer();
-            return;
+            // Przesuń indeks, jeśli:
+            // 1. Drużyna miała kontrolę LUB
+            // 2. Była próba kradzieży (udana kończy rundę, nieudana kończy turę kradnącego) LUB
+            // 3. Właśnie zdobyto kontrolę (bo następny ruch tej samej drużyny)
+            if (teamHadControl || wasStealOpportunity || controlGained) {
+                advancePlayerIndex();
+            }
         }
 
-        revealAnswer(correctAnswer, points, position);
-        roundPoints += points;
-        roundPointsLabel.setText("Pkt: " + roundPoints);
-
-        if (!hasControl) {
-            hasControl = true;
-            currentTeamErrors = 0;
-        }
-
-        revealedAnswers++;
-        resetTimer();
-
-        if (revealedAnswers == 6) {
-            endRound();
-        }
+        updateCurrentPlayerLabel();
     }
 
-    private void revealAnswer(String answer, int points, int position) {
-        answerLabels[position].setText((position + 1) + ". " + answer + " (" + points + " pkt)");
-        answerLabels[position].setTextFill(Color.GOLD);
 
-        FadeTransition ft = new FadeTransition(Duration.millis(300), answerLabels[position]);
-        ft.setFromValue(0.5);
-        ft.setToValue(1);
-        ft.setCycleCount(2);
-        ft.setAutoReverse(true);
-        ft.play();
-    }
-
-    private void registerError() {
-        currentTeamErrors++;
-
+    private void advancePlayerIndex() {
         if (isTeam1Turn) {
-            team1Errors = Math.min(team1Errors + 1, 3);
-            updateErrorsPanel(team1ErrorsPanel, team1Errors);
+            if (!team1Members.isEmpty()) {
+                team1PlayerIndex = (team1PlayerIndex + 1) % team1Members.size();
+            }
         } else {
-            team2Errors = Math.min(team2Errors + 1, 3);
-            updateErrorsPanel(team2ErrorsPanel, team2Errors);
+            if (!team2Members.isEmpty()) {
+                team2PlayerIndex = (team2PlayerIndex + 1) % team2Members.size();
+            }
+        }
+    }
+
+
+    private void handleCorrectAnswer(String correctAnswerBaseForm) {
+        int points = gameService.getPoints(correctAnswerBaseForm);
+        int position = gameService.getAnswerPosition(correctAnswerBaseForm);
+
+        if (answerPanes[position].getStyleClass().contains("answer-revealed")) {
+            showInfo("Ta odpowiedź została już odkryta!");
+            return;
         }
 
         if (stealOpportunity) {
-            if (currentTeamErrors >= 1) {
-                if (!isTeam1Turn) {
-                    team1Score += roundPoints;
-                } else {
-                    team2Score += roundPoints;
-                }
-                endGame();
+            revealAnswer(correctAnswerBaseForm, points, position);
+            if (isTeam1Turn) team1Score += roundPoints;
+            else team2Score += roundPoints;
+            showInfo("Przejęcie udane! Punkty (" + roundPoints + ") dla drużyny " + getCurrentTeamName() + "!");
+            endRound(false);
+            return;
+        }
+
+        if (firstAnswerInRound) {
+            firstAnswerInRound = false;
+            firstTeamAnswer = correctAnswerBaseForm;
+            firstTeamAnswerPosition = position;
+            firstTeamAnswerPoints = points;
+
+            revealAnswer(correctAnswerBaseForm, points, position);
+            roundPoints += points;
+            roundPointsLabel.setText("Pkt: " + roundPoints);
+            revealedAnswers++;
+            lastRevealedPosition = position;
+
+            if (position != 0) {
+                showInfo("Dobra odpowiedź! Ale czy najlepsza? Drużyna " + getOpponentTeamName() + " ma szansę przejąć!");
+                switchTeam();
+            } else {
+                hasControl = true;
+                resetErrorsAndPanels();
+                currentTeamErrors = 0;
+                resetTimer();
+                showInfo("Najlepsza odpowiedź! Drużyna " + getCurrentTeamName() + " ma kontrolę!");
             }
             return;
         }
 
-        if (hasControl) {
-            if (currentTeamErrors >= 3) {
-                giveStealOpportunity();
+        if (!hasControl) {
+            if (position < firstTeamAnswerPosition) {
+                hasControl = true;
+                resetErrorsAndPanels();
+                currentTeamErrors = 0;
+                showInfo("Świetna odpowiedź! Drużyna " + getCurrentTeamName() + " przejmuje kontrolę!");
+
+                revealAnswer(correctAnswerBaseForm, points, position);
+                roundPoints += points;
+                roundPointsLabel.setText("Pkt: " + roundPoints);
+                revealedAnswers++;
+
+                resetTimer();
+            } else {
+                showInfo("Poprawna odpowiedź, ale nie dość dobra, by przejąć. Błąd!");
+                // Błąd zostanie obsłużony w processAnswer -> registerError
             }
         } else {
-            switchTeam();
+            revealAnswer(correctAnswerBaseForm, points, position);
+            roundPoints += points;
+            roundPointsLabel.setText("Pkt: " + roundPoints);
+            revealedAnswers++;
+            resetTimer();
+
+            if (revealedAnswers == 6) {
+                endRound(true);
+            }
         }
     }
+
+    private String capitalizeFirstLetter(String str) {
+        if (str == null || str.isEmpty()) {
+            return str;
+        }
+        if (str.length() == 1) {
+            return str.toUpperCase();
+        }
+        return Character.toUpperCase(str.charAt(0)) + str.substring(1);
+    }
+
+    private void revealAnswer(String answerBaseForm, int points, int position) {
+        String originalAnswer = gameService.getOriginalAnswer(answerBaseForm);
+        String answerToDisplay = capitalizeFirstLetter(originalAnswer);
+
+        BorderPane pane = answerPanes[position];
+        pane.getStyleClass().add("answer-revealed");
+
+        Label answerTextLabel = new Label((position + 1) + ". " + answerToDisplay);
+        answerTextLabel.getStyleClass().clear();
+        answerTextLabel.getStyleClass().addAll("answer-text-label", "revealed");
+
+        Label pointsLabel = new Label(points + " pkt");
+        pointsLabel.getStyleClass().clear();
+        pointsLabel.getStyleClass().addAll("points-label", "revealed");
+
+        pane.setCenter(answerTextLabel);
+        pane.setRight(pointsLabel);
+        BorderPane.setAlignment(answerTextLabel, Pos.CENTER_LEFT);
+        BorderPane.setAlignment(pointsLabel, Pos.CENTER_RIGHT);
+        BorderPane.setMargin(pointsLabel, new Insets(0, 10, 0, 10));
+
+        FadeTransition ft = new FadeTransition(Duration.millis(400), pane);
+        ft.setFromValue(0.3);
+        ft.setToValue(1.0);
+        ft.setCycleCount(1);
+        ft.setAutoReverse(false);
+        ft.play();
+    }
+
+    // ZMODYFIKOWANA METODA registerError
+    private void registerError() {
+        if (gameFinished) return;
+
+        boolean hadControlBeforeError = hasControl;
+        boolean isStealing = stealOpportunity;
+
+        // ZMIANA: Deklaracja currentErrorsToShow na początku metody
+        int currentErrorsToShow;
+        VBox panelToUpdate;
+
+        if (isTeam1Turn) {
+            team1Errors++;
+            panelToUpdate = team1ErrorsPanel;
+            currentErrorsToShow = (hasControl || stealOpportunity) ? team1Errors : Math.min(team1Errors, 1);
+            currentTeamErrors = team1Errors;
+        } else {
+            team2Errors++;
+            panelToUpdate = team2ErrorsPanel;
+            currentErrorsToShow = (hasControl || stealOpportunity) ? team2Errors : Math.min(team2Errors, 1);
+            currentTeamErrors = team2Errors;
+        }
+
+        updateErrorsPanel(panelToUpdate, currentErrorsToShow);
+
+
+        if (isStealing) {
+            showInfo("Błędna odpowiedź przy próbie przejęcia! Punkty ("+ roundPoints +") wędrują do drużyny " + getOpponentTeamName() + "!");
+            awardPointsToOpponent();
+            endRound(false);
+        } else if (hadControlBeforeError) {
+            if (currentTeamErrors >= 3) {
+                showInfo("Trzeci błąd! Szansa na przejęcie dla drużyny " + getOpponentTeamName() + "!");
+                giveStealOpportunity();
+            } else {
+                showInfo("Błąd! Pozostało prób: " + (3 - currentTeamErrors));
+                resetTimer();
+            }
+        } else {
+            if (!firstAnswerInRound) {
+                showInfo("Błędna odpowiedź, nie udało się przejąć. Kontrola pozostaje u drużyny " + getOpponentTeamName() + ".");
+                isTeam1Turn = !isTeam1Turn;
+                hasControl = true;
+                currentTeamErrors = isTeam1Turn ? team1Errors : team2Errors;
+                updateTeamLabels();
+                resetTimer();
+                // Nie zmieniamy gracza, bo wraca do poprzedniego stanu
+            } else {
+                showInfo("Błędna odpowiedź! Szansa dla drużyny " + getOpponentTeamName() + ".");
+                switchTeam();
+            }
+        }
+    }
+
 
     private void giveStealOpportunity() {
         stealOpportunity = true;
+        hasControl = false;
         answerField.setDisable(true);
-        showInfo("Szansa na przejęcie dla drużyny " + getOpponentTeamName() + "\nTylko jedna próba!");
+        showInfo("Uwaga! Drużyna " + getOpponentTeamName() + " ma jedną szansę na przejęcie wszystkich punktów!");
 
-        Timeline timeline = new Timeline(
-                new KeyFrame(Duration.seconds(1), e -> {
-                    switchTeam();
-                    answerField.setDisable(false);
-                    answerField.requestFocus();
-                    answerField.setPromptText("Podaj jedną poprawną odpowiedź");
-                })
-        );
-        timeline.play();
+        Timeline pause = new Timeline(new KeyFrame(Duration.seconds(2), e -> {
+            switchTeam();
+            answerField.setDisable(false);
+            answerField.requestFocus();
+            answerField.setPromptText("Jedna odpowiedź, aby przejąć punkty!");
+            resetTimer();
+        }));
+        pause.play();
     }
+
+    private void resetErrorsAndPanels() {
+        team1Errors = 0;
+        team2Errors = 0;
+        updateErrorsPanel(team1ErrorsPanel, 0);
+        updateErrorsPanel(team2ErrorsPanel, 0);
+    }
+
 
     private void handleTimeOut() {
-        if (hasControl) {
-            giveStealOpportunity();
-        } else {
-            switchTeam();
-        }
+        showInfo("Czas minął!");
+        registerError();
     }
 
-    private void endRound() {
-        if (!stealOpportunity && hasControl) {
-            if (isTeam1Turn) {
-                team1Score += roundPoints;
-            } else {
-                team2Score += roundPoints;
+    private void endRound(boolean pointsAwardedToCurrentTeam) {
+        if (!gameFinished) {
+            gameFinished = true;
+            answerField.setDisable(true);
+            if (timer != null) {
+                timer.stop();
             }
-        }
 
-        updateTeamLabels();
-        endGame();
+            if (pointsAwardedToCurrentTeam) {
+                if (isTeam1Turn) team1Score += roundPoints;
+                else team2Score += roundPoints;
+            }
+
+            updateTeamLabels();
+            showEndOfRoundDialog();
+        }
     }
 
-    private void endGame() {
-        gameFinished = true;
-        answerField.setDisable(true);
-        if (timer != null) {
-            timer.stop();
-        }
-
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+    private void showEndOfRoundDialog() {
+        Alert alert = new Alert(AlertType.INFORMATION);
         alert.setTitle("Koniec rundy!");
-        alert.setHeaderText(null);
+        alert.setHeaderText("Runda zakończona! Aktualny wynik:");
 
-        Label content = new Label("Przygotowywanie kolejnego pytania...\n\n" +
+        Label content = new Label(
                 team1Name + ": " + team1Score + " pkt\n" +
-                team2Name + ": " + team2Score + " pkt\n\n" +
-                "Następna runda zaczyna się za chwilę!");
+                        team2Name + ": " + team2Score + " pkt\n\n" +
+                        "Trwa ładowanie kolejnego pytania...");
         content.setFont(Font.font("Arial", 20));
+        content.setWrapText(true);
 
         loadingIndicator = new ProgressIndicator();
         loadingIndicator.setStyle("-fx-progress-color: gold;");
@@ -548,64 +717,116 @@ public class GameFrame {
         alertContent.setAlignment(Pos.CENTER);
         alertContent.setPadding(new Insets(20));
 
-        alert.getDialogPane().setContent(alertContent);
-        alert.getDialogPane().setPrefSize(500, 300);
+        DialogPane dialogPane = alert.getDialogPane();
+        try {
+            dialogPane.getStylesheets().add(getClass().getResource("/styles.css").toExternalForm());
+            dialogPane.getStyleClass().add("custom-alert");
+        } catch (Exception e) {
+            System.err.println("Nie można załadować stylów dla alertu: " + e.getMessage());
+        }
+        dialogPane.setContent(alertContent);
+        dialogPane.setPrefSize(500, 300);
 
         new Thread(() -> {
             loadNewQuestion();
-
             Platform.runLater(() -> {
                 alert.close();
                 prepareNewRound();
             });
         }).start();
 
-        alert.showAndWait();
+        alert.show();
+    }
+
+
+    private void awardPointsToOpponent() {
+        if (isTeam1Turn) {
+            team2Score += roundPoints;
+        } else {
+            team1Score += roundPoints;
+        }
+        updateTeamLabels();
     }
 
     private void loadNewQuestion() {
+        System.out.println("Ładowanie nowego pytania...");
         String newQuestion;
+        int attempts = 0;
+        final int MAX_ATTEMPTS = 10;
+
         do {
             gameService = new GameService(selectedCategory);
             newQuestion = gameService.getCurrentQuestion();
-        } while (usedQuestions.contains(TextNormalizer.normalizeToBaseForm(newQuestion)));
+            attempts++;
+            if (newQuestion == null) {
+                System.err.println("Błąd: Nie udało się załadować pytania z bazy dla kategorii: " + selectedCategory);
+                Platform.runLater(() -> showCriticalError("Błąd ładowania pytania z bazy."));
+                return;
+            }
+            String normalizedNewQuestion = TextNormalizer.normalizeToBaseForm(newQuestion);
 
-        usedQuestions.add(TextNormalizer.normalizeToBaseForm(newQuestion));
+            if (!usedQuestions.contains(normalizedNewQuestion)) {
+                usedQuestions.add(normalizedNewQuestion);
+                System.out.println("Załadowano nowe pytanie: " + newQuestion);
+                return;
+            }
+
+            System.out.println("Pytanie '" + newQuestion + "' już było. Losuję kolejne...");
+
+        } while (attempts < MAX_ATTEMPTS);
+
+        System.err.println("Nie udało się znaleźć nowego, nieużywanego pytania po " + MAX_ATTEMPTS + " próbach.");
+        Platform.runLater(() -> showCriticalError("Brak dostępnych nowych pytań w tej kategorii!"));
     }
 
     private void prepareNewRound() {
+        if (gameService.getCurrentQuestion() == null) {
+            System.err.println("Nie można przygotować nowej rundy - brak pytania.");
+            return;
+        }
+
         gameFinished = false;
         roundPoints = 0;
         roundPointsLabel.setText("Pkt: 0");
         revealedAnswers = 0;
         hasControl = false;
         currentTeamErrors = 0;
+        team1Errors = 0;
+        team2Errors = 0;
         stealOpportunity = false;
         lastRevealedPosition = -1;
         firstAnswerInRound = true;
         firstTeamAnswer = null;
         firstTeamAnswerPosition = -1;
         firstTeamAnswerPoints = 0;
-        team1Errors = 0;
-        team2Errors = 0;
-        updateErrorsPanel(team1ErrorsPanel, 0);
-        updateErrorsPanel(team2ErrorsPanel, 0);
+        team1PlayerIndex = 0;
+        team2PlayerIndex = 0;
+
+        resetErrorsAndPanels();
 
         isTeam1Turn = !isTeam1Turn;
+        updateTeamLabels();
+        updateCurrentPlayerLabel();
+
         questionLabel.setText(gameService.getCurrentQuestion() + (gameService.getCurrentQuestion().endsWith("?") ? "" : "?"));
 
         for (int i = 0; i < 6; i++) {
-            resetAnswerLabel(i);
+            resetAnswerPane(i);
         }
 
-        updateTeamLabels();
-        resetTimer();
         answerField.setDisable(false);
         answerField.requestFocus();
         answerField.setPromptText("Wpisz odpowiedź i naciśnij Enter");
+        resetTimer();
+
+        System.out.println("Nowa runda rozpoczęta. Zaczyna drużyna: " + getCurrentTeamName());
     }
 
+
     private void resetTimer() {
+        if (timer != null) {
+            timer.stop();
+        }
         timeLeft = initialAnswerTime;
         updateTimerDisplay();
         startTimer();
@@ -613,19 +834,24 @@ public class GameFrame {
 
     private void switchTeam() {
         isTeam1Turn = !isTeam1Turn;
-        currentTeamErrors = 0;
         answerField.setDisable(false);
         answerField.requestFocus();
         updateTeamLabels();
+        updateCurrentPlayerLabel();
         resetTimer();
+        System.out.println("Zmiana tury. Teraz odpowiada: " + getCurrentTeamName());
+    }
+
+    private String getCurrentTeamName() {
+        return isTeam1Turn ? team1Name : team2Name;
     }
 
     private String getOpponentTeamName() {
-        return isTeam1Turn ? team2Label.getText().split(":")[0] : team1Label.getText().split(":")[0];
+        return isTeam1Turn ? team2Name : team1Name;
     }
 
     private void showInfo(String message) {
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        Alert alert = new Alert(AlertType.INFORMATION);
         alert.setTitle("Informacja");
         alert.setHeaderText(null);
         alert.setContentText(message);
@@ -635,17 +861,36 @@ public class GameFrame {
             dialogPane.getStylesheets().add(getClass().getResource("/styles.css").toExternalForm());
             dialogPane.getStyleClass().add("custom-alert");
         } catch (Exception e) {
-            System.err.println("Nie można załadować stylów alertu: " + e.getMessage());
+            System.err.println("Nie można załadować stylów dla alertu informacyjnego: " + e.getMessage());
         }
 
         alert.showAndWait();
     }
 
+    private void showCriticalError(String message) {
+        Alert alert = new Alert(AlertType.ERROR);
+        alert.setTitle("Błąd krytyczny");
+        alert.setHeaderText("Wystąpił poważny błąd!");
+        alert.setContentText(message + "\n\nAplikacja może wymagać ponownego uruchomienia.");
+        DialogPane dialogPane = alert.getDialogPane();
+        try {
+            dialogPane.getStylesheets().add(getClass().getResource("/styles.css").toExternalForm());
+            dialogPane.getStyleClass().add("custom-alert");
+        } catch (Exception e) {
+            System.err.println("Nie można załadować stylów dla alertu błędu: " + e.getMessage());
+        }
+        alert.showAndWait();
+    }
+
     public void show() {
         stage.show();
-        FadeTransition ft = new FadeTransition(Duration.millis(500), stage.getScene().getRoot());
-        ft.setFromValue(0);
-        ft.setToValue(1);
-        ft.play();
+        if (stage.getScene() != null && stage.getScene().getRoot() != null) {
+            FadeTransition ft = new FadeTransition(Duration.millis(500), stage.getScene().getRoot());
+            ft.setFromValue(0);
+            ft.setToValue(1);
+            ft.play();
+        } else {
+            System.err.println("Nie można wykonać animacji FadeTransition - scena lub root jest null.");
+        }
     }
 }
