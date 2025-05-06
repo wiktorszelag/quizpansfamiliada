@@ -70,18 +70,18 @@ public class GameFrame {
     private int team2Score = 0;
     private boolean hasControl = false;
     private int revealedAnswers = 0;
-    private int currentTeamErrors = 0;
     private boolean stealOpportunity = false;
-    private int lastRevealedPosition = -1;
     private boolean firstAnswerInRound = true;
     private String firstTeamAnswer = null;
     private int firstTeamAnswerPosition = -1;
-    private int firstTeamAnswerPoints = 0;
     private boolean gameFinished = false;
     private final Set<String> usedQuestions = new HashSet<>();
     private ProgressIndicator loadingIndicator;
     private int team1Errors = 0;
     private int team2Errors = 0;
+    private boolean timerWasRunningBeforeAlert = false;
+    private int currentRoundNumber = 1;
+    private final int MAX_ROUNDS = 6;
 
     public GameFrame(String selectedCategory, int answerTime, String team1Name, String team2Name, boolean isTeam1Turn, List<String> team1Members, List<String> team2Members) {
         this.stage = new Stage();
@@ -104,6 +104,12 @@ public class GameFrame {
         initializeFrame();
         initUI();
         updateTeamLabels();
+        // --- ZMIANA: Usunięto wywołanie stąd ---
+        // setInitialPlayerIndexForRound();
+        // --- Ustawienie gracza 1 na start Rundy 1 ---
+        this.team1PlayerIndex = 0;
+        this.team2PlayerIndex = 0;
+        // --- Koniec zmiany ---
         updateCurrentPlayerLabel();
         startTimer();
         usedQuestions.add(TextNormalizer.normalizeToBaseForm(gameService.getCurrentQuestion()));
@@ -130,14 +136,14 @@ public class GameFrame {
             System.err.println("Błąd: Próba aktualizacji niezainicjalizowanego lub pustego panelu błędów.");
             return;
         }
+        int errorsToDisplay = Math.min(errors, panel.getChildren().size());
 
         for (int i = 0; i < panel.getChildren().size(); i++) {
             if (!(panel.getChildren().get(i) instanceof Label)) continue;
 
             Label label = (Label) panel.getChildren().get(i);
-            boolean shouldBeFilled = i < errors;
+            boolean shouldBeFilled = i < errorsToDisplay;
             boolean wasFilled = label.getStyleClass().contains("error-circle");
-
 
             if (shouldBeFilled) {
                 if (!wasFilled) {
@@ -145,7 +151,7 @@ public class GameFrame {
                     label.getStyleClass().add("error-circle");
                     label.setText("X");
 
-                    if (i == errors - 1) {
+                    if (i == errorsToDisplay - 1) {
                         FadeTransition ft = new FadeTransition(Duration.millis(300), label);
                         ft.setFromValue(0);
                         ft.setToValue(1);
@@ -191,11 +197,20 @@ public class GameFrame {
             team1Label.setEffect(new DropShadow(10, Color.GOLD));
             team2Label.setTextFill(Color.WHITE);
             team2Label.setEffect(new DropShadow(5, Color.BLACK));
+            team1Label.getStyleClass().removeAll("team-inactive", "team-active");
+            team1Label.getStyleClass().add("team-active");
+            team2Label.getStyleClass().removeAll("team-inactive", "team-active");
+            team2Label.getStyleClass().add("team-inactive");
+
         } else {
             team1Label.setTextFill(Color.WHITE);
             team1Label.setEffect(new DropShadow(5, Color.BLACK));
             team2Label.setTextFill(Color.GOLD);
             team2Label.setEffect(new DropShadow(10, Color.GOLD));
+            team1Label.getStyleClass().removeAll("team-inactive", "team-active");
+            team1Label.getStyleClass().add("team-inactive");
+            team2Label.getStyleClass().removeAll("team-inactive", "team-active");
+            team2Label.getStyleClass().add("team-active");
         }
         team1TotalLabel.setText(String.valueOf(team1Score));
         team2TotalLabel.setText(String.valueOf(team2Score));
@@ -221,6 +236,25 @@ public class GameFrame {
         }
     }
 
+    // --- ZMIANA: Metoda ustawia indeksy dla OBU drużyn ---
+    private void setInitialPlayerIndexForRound() {
+        int baseIndex = currentRoundNumber - 1;
+
+        if (!team1Members.isEmpty()) {
+            team1PlayerIndex = baseIndex % team1Members.size();
+        } else {
+            team1PlayerIndex = 0;
+        }
+
+        if (!team2Members.isEmpty()) {
+            team2PlayerIndex = baseIndex % team2Members.size();
+        } else {
+            team2PlayerIndex = 0;
+        }
+        System.out.println("Setting initial indices for Round " + currentRoundNumber + ": T1=" + team1PlayerIndex + ", T2=" + team2PlayerIndex);
+    }
+    // --- KONIEC ZMIANY ---
+
 
     private void initializeFrame() {
         stage.setTitle("Familiada - Nowoczesna Wersja");
@@ -238,6 +272,14 @@ public class GameFrame {
         }
     }
 
+    private String getFormattedQuestion() {
+        if (gameService == null || gameService.getCurrentQuestion() == null) {
+            return "Błąd ładowania pytania...";
+        }
+        String baseQuestion = gameService.getCurrentQuestion();
+        return "Pytanie numer " + currentRoundNumber + ": " + baseQuestion + (baseQuestion.endsWith("?") ? "" : "?");
+    }
+
     private void initUI() {
         LinearGradient gradient = new LinearGradient(
                 0, 0, 1, 1, true, CycleMethod.NO_CYCLE,
@@ -252,7 +294,7 @@ public class GameFrame {
         VBox topPanel = new VBox(15);
         topPanel.setAlignment(Pos.CENTER);
 
-        questionLabel.setText(gameService.getCurrentQuestion() + (gameService.getCurrentQuestion().endsWith("?") ? "" : "?"));
+        questionLabel.setText(getFormattedQuestion());
         questionLabel.setFont(Font.font("Arial", FontWeight.BOLD, 36));
         questionLabel.setTextFill(Color.WHITE);
         questionLabel.setEffect(new DropShadow(15, Color.BLACK));
@@ -408,17 +450,22 @@ public class GameFrame {
 
         timer = new Timeline(
                 new KeyFrame(Duration.seconds(1), e -> {
+                    if (gameFinished) {
+                        timer.stop();
+                        return;
+                    }
                     timeLeft--;
                     updateTimerDisplay();
                     if (timeLeft <= 0) {
                         timer.stop();
                         answerField.setDisable(true);
-                        handleTimeOut();
+                        Platform.runLater(this::handleTimeOut);
                     }
                 })
         );
         timer.setCycleCount(Timeline.INDEFINITE);
         timer.play();
+        timerWasRunningBeforeAlert = true;
     }
 
     private void updateTimerDisplay() {
@@ -437,8 +484,7 @@ public class GameFrame {
         String userAnswer = answerField.getText().trim();
         answerField.clear();
 
-        boolean teamHadControl = hasControl;
-        boolean wasStealOpportunity = stealOpportunity;
+        advanceCurrentPlayerIndex();
 
         if (userAnswer.isEmpty()) {
             showInfo("Pusta odpowiedź! Liczymy jako błąd.");
@@ -451,52 +497,51 @@ public class GameFrame {
                 registerError();
             }
         }
-
-        if (!gameFinished) {
-            boolean wasFirstAnswer = firstAnswerInRound; // Sprawdź *przed* potencjalnym ustawieniem w handleCorrectAnswer
-            boolean controlGained = !teamHadControl && hasControl; // Czy kontrola została właśnie zdobyta?
-            boolean stealFailed = wasStealOpportunity && !gameFinished; // Czy była kradzież i nie zakończyła rundy (czyli była błędna)?
-
-            // Przesuń indeks, jeśli:
-            // 1. Drużyna miała kontrolę LUB
-            // 2. Była próba kradzieży (udana kończy rundę, nieudana kończy turę kradnącego) LUB
-            // 3. Właśnie zdobyto kontrolę (bo następny ruch tej samej drużyny)
-            if (teamHadControl || wasStealOpportunity || controlGained) {
-                advancePlayerIndex();
-            }
-        }
-
-        updateCurrentPlayerLabel();
     }
 
-
-    private void advancePlayerIndex() {
+    private void advanceCurrentPlayerIndex() {
         if (isTeam1Turn) {
-            if (!team1Members.isEmpty()) {
+            if (team1Members.size() > 1) {
                 team1PlayerIndex = (team1PlayerIndex + 1) % team1Members.size();
+                System.out.println("Advanced T1 index to: " + team1PlayerIndex + " (after action)");
             }
         } else {
-            if (!team2Members.isEmpty()) {
+            if (team2Members.size() > 1) {
                 team2PlayerIndex = (team2PlayerIndex + 1) % team2Members.size();
+                System.out.println("Advanced T2 index to: " + team2PlayerIndex + " (after action)");
             }
         }
     }
 
+    private void continueTurnForCurrentTeam() {
+        updateCurrentPlayerLabel();
+        resetTimer();
+    }
 
     private void handleCorrectAnswer(String correctAnswerBaseForm) {
+        if (gameFinished) return;
+
         int points = gameService.getPoints(correctAnswerBaseForm);
         int position = gameService.getAnswerPosition(correctAnswerBaseForm);
 
         if (answerPanes[position].getStyleClass().contains("answer-revealed")) {
             showInfo("Ta odpowiedź została już odkryta!");
+            continueTurnForCurrentTeam();
             return;
         }
 
-        if (stealOpportunity) {
-            revealAnswer(correctAnswerBaseForm, points, position);
+        boolean wasStealing = stealOpportunity;
+        stealOpportunity = false;
+
+        revealAnswer(correctAnswerBaseForm, points, position);
+        roundPoints += points;
+        roundPointsLabel.setText("Pkt: " + roundPoints);
+        revealedAnswers++;
+
+        if (wasStealing) {
             if (isTeam1Turn) team1Score += roundPoints;
             else team2Score += roundPoints;
-            showInfo("Przejęcie udane! Punkty (" + roundPoints + ") dla drużyny " + getCurrentTeamName() + "!");
+            showInfo("Przejęcie udane! Punkty (" + roundPoints + ") dla drużyny " + getCurrentTeamName() + "!", false);
             endRound(false);
             return;
         }
@@ -505,53 +550,44 @@ public class GameFrame {
             firstAnswerInRound = false;
             firstTeamAnswer = correctAnswerBaseForm;
             firstTeamAnswerPosition = position;
-            firstTeamAnswerPoints = points;
-
-            revealAnswer(correctAnswerBaseForm, points, position);
-            roundPoints += points;
-            roundPointsLabel.setText("Pkt: " + roundPoints);
-            revealedAnswers++;
-            lastRevealedPosition = position;
 
             if (position != 0) {
-                showInfo("Dobra odpowiedź! Ale czy najlepsza? Drużyna " + getOpponentTeamName() + " ma szansę przejąć!");
+                showInfo("Dobra odpowiedź! Ale czy najlepsza? Szansa dla drużyny " + getOpponentTeamName() + "!");
                 switchTeam();
             } else {
                 hasControl = true;
                 resetErrorsAndPanels();
-                currentTeamErrors = 0;
-                resetTimer();
                 showInfo("Najlepsza odpowiedź! Drużyna " + getCurrentTeamName() + " ma kontrolę!");
+                continueTurnForCurrentTeam();
             }
-            return;
-        }
-
-        if (!hasControl) {
-            if (position < firstTeamAnswerPosition) {
+        } else if (!hasControl) {
+            if (firstTeamAnswerPosition == -1) {
                 hasControl = true;
                 resetErrorsAndPanels();
-                currentTeamErrors = 0;
-                showInfo("Świetna odpowiedź! Drużyna " + getCurrentTeamName() + " przejmuje kontrolę!");
-
-                revealAnswer(correctAnswerBaseForm, points, position);
-                roundPoints += points;
-                roundPointsLabel.setText("Pkt: " + roundPoints);
-                revealedAnswers++;
-
-                resetTimer();
+                showInfo("Poprawna odpowiedź! Drużyna " + getCurrentTeamName() + " przejmuje kontrolę!");
+                continueTurnForCurrentTeam();
             } else {
-                showInfo("Poprawna odpowiedź, ale nie dość dobra, by przejąć. Błąd!");
-                // Błąd zostanie obsłużony w processAnswer -> registerError
+                if (position < firstTeamAnswerPosition) {
+                    hasControl = true;
+                    resetErrorsAndPanels();
+                    showInfo("Świetna odpowiedź! Drużyna " + getCurrentTeamName() + " przejmuje kontrolę!");
+                    continueTurnForCurrentTeam();
+                } else {
+                    showInfo("Poprawna odpowiedź, ale nie lepsza. Kontrola dla " + getOpponentTeamName() + ".");
+                    isTeam1Turn = !isTeam1Turn;
+                    hasControl = true;
+                    resetErrorsAndPanels();
+                    updateTeamLabels();
+                    updateCurrentPlayerLabel();
+                    resetTimer();
+                }
             }
         } else {
-            revealAnswer(correctAnswerBaseForm, points, position);
-            roundPoints += points;
-            roundPointsLabel.setText("Pkt: " + roundPoints);
-            revealedAnswers++;
-            resetTimer();
-
             if (revealedAnswers == 6) {
+                showInfo("Wszystkie odpowiedzi odkryte! Runda dla drużyny " + getCurrentTeamName() + "!", false);
                 endRound(true);
+            } else {
+                continueTurnForCurrentTeam();
             }
         }
     }
@@ -595,71 +631,81 @@ public class GameFrame {
         ft.play();
     }
 
-    // ZMODYFIKOWANA METODA registerError
     private void registerError() {
         if (gameFinished) return;
 
         boolean hadControlBeforeError = hasControl;
         boolean isStealing = stealOpportunity;
+        stealOpportunity = false;
 
-        // ZMIANA: Deklaracja currentErrorsToShow na początku metody
-        int currentErrorsToShow;
+        int currentErrors;
         VBox panelToUpdate;
+        boolean shouldDisplayErrorX = hadControlBeforeError || isStealing;
 
         if (isTeam1Turn) {
             team1Errors++;
+            currentErrors = team1Errors;
             panelToUpdate = team1ErrorsPanel;
-            currentErrorsToShow = (hasControl || stealOpportunity) ? team1Errors : Math.min(team1Errors, 1);
-            currentTeamErrors = team1Errors;
         } else {
             team2Errors++;
+            currentErrors = team2Errors;
             panelToUpdate = team2ErrorsPanel;
-            currentErrorsToShow = (hasControl || stealOpportunity) ? team2Errors : Math.min(team2Errors, 1);
-            currentTeamErrors = team2Errors;
         }
 
-        updateErrorsPanel(panelToUpdate, currentErrorsToShow);
-
+        if (shouldDisplayErrorX) {
+            updateErrorsPanel(panelToUpdate, currentErrors);
+        }
 
         if (isStealing) {
-            showInfo("Błędna odpowiedź przy próbie przejęcia! Punkty ("+ roundPoints +") wędrują do drużyny " + getOpponentTeamName() + "!");
+            showInfo("Błędna odpowiedź przy próbie przejęcia! Punkty ("+ roundPoints +") wędrują do drużyny " + getOpponentTeamName() + "!", false);
             awardPointsToOpponent();
             endRound(false);
         } else if (hadControlBeforeError) {
-            if (currentTeamErrors >= 3) {
-                showInfo("Trzeci błąd! Szansa na przejęcie dla drużyny " + getOpponentTeamName() + "!");
+            if (currentErrors >= 3) {
+                showInfo("Trzeci błąd! Szansa na przejęcie dla drużyny " + getOpponentTeamName() + "!", false);
                 giveStealOpportunity();
             } else {
-                showInfo("Błąd! Pozostało prób: " + (3 - currentTeamErrors));
-                resetTimer();
+                showInfo("Błąd! Pozostało prób: " + (3 - currentErrors));
+                continueTurnForCurrentTeam();
             }
         } else {
             if (!firstAnswerInRound) {
-                showInfo("Błędna odpowiedź, nie udało się przejąć. Kontrola pozostaje u drużyny " + getOpponentTeamName() + ".");
-                isTeam1Turn = !isTeam1Turn;
-                hasControl = true;
-                currentTeamErrors = isTeam1Turn ? team1Errors : team2Errors;
-                updateTeamLabels();
-                resetTimer();
-                // Nie zmieniamy gracza, bo wraca do poprzedniego stanu
+                if (firstTeamAnswerPosition == -1) {
+                    showInfo("Błędna odpowiedź! Szansa dla drużyny " + getOpponentTeamName() + ".");
+                    switchTeam();
+                } else {
+                    showInfo("Błędna odpowiedź, nie udało się przejąć. Kontrola dla drużyny " + getOpponentTeamName() + ".");
+                    isTeam1Turn = !isTeam1Turn;
+                    hasControl = true;
+                    resetErrorsAndPanels();
+                    updateTeamLabels();
+                    updateCurrentPlayerLabel();
+                    resetTimer();
+                }
             } else {
+                firstAnswerInRound = false;
+                firstTeamAnswerPosition = -1;
                 showInfo("Błędna odpowiedź! Szansa dla drużyny " + getOpponentTeamName() + ".");
                 switchTeam();
             }
         }
     }
 
-
     private void giveStealOpportunity() {
-        stealOpportunity = true;
         hasControl = false;
-        answerField.setDisable(true);
-        showInfo("Uwaga! Drużyna " + getOpponentTeamName() + " ma jedną szansę na przejęcie wszystkich punktów!");
+        stealOpportunity = true;
+        if (timer != null) {
+            timer.stop();
+        }
+
+        showInfo("Uwaga! Drużyna " + getOpponentTeamName() + " ma jedną szansę na przejęcie wszystkich punktów!", false);
 
         Timeline pause = new Timeline(new KeyFrame(Duration.seconds(2), e -> {
-            switchTeam();
-            answerField.setDisable(false);
-            answerField.requestFocus();
+            if (gameFinished) return;
+            isTeam1Turn = !isTeam1Turn;
+            updateTeamLabels();
+            updateCurrentPlayerLabel();
+
             answerField.setPromptText("Jedna odpowiedź, aby przejąć punkty!");
             resetTimer();
         }));
@@ -673,10 +719,84 @@ public class GameFrame {
         updateErrorsPanel(team2ErrorsPanel, 0);
     }
 
-
     private void handleTimeOut() {
-        showInfo("Czas minął!");
-        registerError();
+        if (gameFinished) return;
+
+        System.out.println("Timeout occurred for team: " + getCurrentTeamName());
+        answerField.setDisable(true);
+
+        advanceCurrentPlayerIndex();
+
+        VBox panelToUpdate;
+        int errorsAfterTimeout;
+        boolean hadControlBeforeTimeout = hasControl;
+        boolean wasStealing = stealOpportunity;
+        stealOpportunity = false;
+
+        if (isTeam1Turn) {
+            team1Errors++;
+            errorsAfterTimeout = team1Errors;
+            panelToUpdate = team1ErrorsPanel;
+        } else {
+            team2Errors++;
+            errorsAfterTimeout = team2Errors;
+            panelToUpdate = team2ErrorsPanel;
+        }
+
+        if (hadControlBeforeTimeout || wasStealing) {
+            updateErrorsPanel(panelToUpdate, errorsAfterTimeout);
+        }
+
+        String message = "Czas minął! ";
+        Runnable nextAction = null;
+
+        if (wasStealing) {
+            System.out.println("Timeout during steal attempt.");
+            message += "Próba przejęcia nieudana. Punkty ("+ roundPoints +") wędrują do drużyny " + getOpponentTeamName() + "!";
+            nextAction = () -> {
+                awardPointsToOpponent();
+                endRound(false);
+            };
+        } else if (hadControlBeforeTimeout) {
+            System.out.println("Timeout while team had control. Errors: " + errorsAfterTimeout);
+            if (errorsAfterTimeout >= 3) {
+                message += "Trzeci błąd! Szansa na przejęcie dla drużyny " + getOpponentTeamName() + "!";
+                nextAction = this::giveStealOpportunity;
+            } else {
+                message += "Kolejka przechodzi do następnego gracza w tej samej drużynie.";
+                nextAction = this::continueTurnForCurrentTeam;
+            }
+        } else {
+            System.out.println("Timeout while team did not have control.");
+            if (!firstAnswerInRound) {
+                if (firstTeamAnswerPosition == -1) {
+                    message += "Szansa dla drużyny " + getOpponentTeamName() + ".";
+                    nextAction = this::switchTeam;
+                } else {
+                    message += "Nie udało się przejąć kontroli. Kontrola dla drużyny " + getOpponentTeamName() + ".";
+                    nextAction = () -> {
+                        isTeam1Turn = !isTeam1Turn;
+                        hasControl = true;
+                        resetErrorsAndPanels();
+                        updateTeamLabels();
+                        updateCurrentPlayerLabel();
+                        resetTimer();
+                    };
+                }
+            } else {
+                firstAnswerInRound = false;
+                firstTeamAnswerPosition = -1;
+                message += "Kolejka przechodzi do drużyny " + getOpponentTeamName() + ".";
+                nextAction = this::switchTeam;
+            }
+        }
+
+        showInfo(message, false);
+
+        final Runnable finalNextAction = nextAction;
+        if (finalNextAction != null) {
+            finalNextAction.run();
+        }
     }
 
     private void endRound(boolean pointsAwardedToCurrentTeam) {
@@ -686,6 +806,7 @@ public class GameFrame {
             if (timer != null) {
                 timer.stop();
             }
+            timerWasRunningBeforeAlert = false;
 
             if (pointsAwardedToCurrentTeam) {
                 if (isTeam1Turn) team1Score += roundPoints;
@@ -693,25 +814,27 @@ public class GameFrame {
             }
 
             updateTeamLabels();
-            showEndOfRoundDialog();
+            Platform.runLater(this::showEndOfRoundDialog);
         }
     }
 
     private void showEndOfRoundDialog() {
         Alert alert = new Alert(AlertType.INFORMATION);
-        alert.setTitle("Koniec rundy!");
-        alert.setHeaderText("Runda zakończona! Aktualny wynik:");
+        alert.setTitle("Koniec rundy " + currentRoundNumber + "!");
+        alert.setHeaderText("Runda " + currentRoundNumber + " zakończona! Aktualny wynik:");
 
         Label content = new Label(
                 team1Name + ": " + team1Score + " pkt\n" +
                         team2Name + ": " + team2Score + " pkt\n\n" +
-                        "Trwa ładowanie kolejnego pytania...");
+                        (currentRoundNumber < MAX_ROUNDS ? "Trwa ładowanie kolejnego pytania..." : "Gra zakończona!")
+        );
         content.setFont(Font.font("Arial", 20));
         content.setWrapText(true);
 
         loadingIndicator = new ProgressIndicator();
         loadingIndicator.setStyle("-fx-progress-color: gold;");
         loadingIndicator.setPrefSize(50, 50);
+        loadingIndicator.setVisible(currentRoundNumber < MAX_ROUNDS);
 
         VBox alertContent = new VBox(20, content, loadingIndicator);
         alertContent.setAlignment(Pos.CENTER);
@@ -728,7 +851,9 @@ public class GameFrame {
         dialogPane.setPrefSize(500, 300);
 
         new Thread(() -> {
-            loadNewQuestion();
+            if (currentRoundNumber < MAX_ROUNDS) {
+                loadNewQuestion();
+            }
             Platform.runLater(() -> {
                 alert.close();
                 prepareNewRound();
@@ -737,7 +862,6 @@ public class GameFrame {
 
         alert.show();
     }
-
 
     private void awardPointsToOpponent() {
         if (isTeam1Turn) {
@@ -752,17 +876,27 @@ public class GameFrame {
         System.out.println("Ładowanie nowego pytania...");
         String newQuestion;
         int attempts = 0;
-        final int MAX_ATTEMPTS = 10;
+        final int MAX_ATTEMPTS_LOAD = 10;
 
         do {
-            gameService = new GameService(selectedCategory);
-            newQuestion = gameService.getCurrentQuestion();
+            try {
+                gameService = new GameService(selectedCategory);
+                newQuestion = gameService.getCurrentQuestion();
+            } catch (RuntimeException e) {
+                System.err.println("Krytyczny błąd podczas ładowania pytania z bazy: " + e.getMessage());
+                gameService = null;
+                newQuestion = null;
+                break;
+            }
+
             attempts++;
             if (newQuestion == null) {
-                System.err.println("Błąd: Nie udało się załadować pytania z bazy dla kategorii: " + selectedCategory);
-                Platform.runLater(() -> showCriticalError("Błąd ładowania pytania z bazy."));
-                return;
+                System.err.println("Błąd: Nie udało się załadować pytania z bazy dla kategorii: " + selectedCategory + " (próba " + attempts + ")");
+                if(attempts >= MAX_ATTEMPTS_LOAD) break;
+                try { Thread.sleep(100); } catch (InterruptedException ignored) {}
+                continue;
             }
+
             String normalizedNewQuestion = TextNormalizer.normalizeToBaseForm(newQuestion);
 
             if (!usedQuestions.contains(normalizedNewQuestion)) {
@@ -771,44 +905,62 @@ public class GameFrame {
                 return;
             }
 
-            System.out.println("Pytanie '" + newQuestion + "' już było. Losuję kolejne...");
+            System.out.println("Pytanie '" + newQuestion + "' już było. Losuję kolejne... (próba " + attempts + ")");
 
-        } while (attempts < MAX_ATTEMPTS);
+        } while (attempts < MAX_ATTEMPTS_LOAD);
 
-        System.err.println("Nie udało się znaleźć nowego, nieużywanego pytania po " + MAX_ATTEMPTS + " próbach.");
-        Platform.runLater(() -> showCriticalError("Brak dostępnych nowych pytań w tej kategorii!"));
+        if (gameService == null || gameService.getCurrentQuestion() == null || usedQuestions.contains(TextNormalizer.normalizeToBaseForm(gameService.getCurrentQuestion())) ) {
+            System.err.println("Nie udało się znaleźć nowego, nieużywanego pytania po " + MAX_ATTEMPTS_LOAD + " próbach.");
+            if (gameService != null) {
+                try {
+                    java.lang.reflect.Field questionField = GameService.class.getDeclaredField("currentQuestion");
+                    questionField.setAccessible(true);
+                    questionField.set(gameService, null);
+                } catch (Exception e) {
+                    System.err.println("Nie można ustawić currentQuestion na null przez refleksję.");
+                    gameService = null;
+                }
+            }
+        } else {
+            System.out.println("Załadowano nowe pytanie (po pętli): " + gameService.getCurrentQuestion());
+        }
     }
 
     private void prepareNewRound() {
-        if (gameService.getCurrentQuestion() == null) {
-            System.err.println("Nie można przygotować nowej rundy - brak pytania.");
+        currentRoundNumber++;
+
+        if (currentRoundNumber > MAX_ROUNDS || gameService == null || gameService.getCurrentQuestion() == null) {
+            if(currentRoundNumber > MAX_ROUNDS) {
+                System.out.println("Osiągnięto maksymalną liczbę rund (" + MAX_ROUNDS + "). Koniec gry.");
+            } else {
+                System.err.println("Nie można przygotować nowej rundy - brak pytania lub błąd ładowania.");
+            }
+            gameFinished = true;
+            Platform.runLater(this::showGameEndDialog);
             return;
         }
 
+        System.out.println("Przygotowywanie nowej rundy " + currentRoundNumber + "...");
         gameFinished = false;
         roundPoints = 0;
         roundPointsLabel.setText("Pkt: 0");
         revealedAnswers = 0;
         hasControl = false;
-        currentTeamErrors = 0;
-        team1Errors = 0;
-        team2Errors = 0;
         stealOpportunity = false;
-        lastRevealedPosition = -1;
         firstAnswerInRound = true;
         firstTeamAnswer = null;
         firstTeamAnswerPosition = -1;
-        firstTeamAnswerPoints = 0;
-        team1PlayerIndex = 0;
-        team2PlayerIndex = 0;
 
         resetErrorsAndPanels();
 
         isTeam1Turn = !isTeam1Turn;
         updateTeamLabels();
+        // --- ZMIANA: Ustaw indeksy startowe dla obu drużyn ZANIM pokażesz gracza ---
+        setInitialPlayerIndexForRound();
         updateCurrentPlayerLabel();
+        // --- KONIEC ZMIANY ---
 
-        questionLabel.setText(gameService.getCurrentQuestion() + (gameService.getCurrentQuestion().endsWith("?") ? "" : "?"));
+        questionLabel.setText(getFormattedQuestion());
 
         for (int i = 0; i < 6; i++) {
             resetAnswerPane(i);
@@ -819,27 +971,94 @@ public class GameFrame {
         answerField.setPromptText("Wpisz odpowiedź i naciśnij Enter");
         resetTimer();
 
-        System.out.println("Nowa runda rozpoczęta. Zaczyna drużyna: " + getCurrentTeamName());
+        System.out.println("Nowa runda (" + currentRoundNumber + "/" + MAX_ROUNDS + ") rozpoczęta. Zaczyna drużyna: " + getCurrentTeamName());
     }
 
+    private void showGameEndDialog() {
+        gameFinished = true;
+        answerField.setDisable(true);
+        if (timer != null) {
+            timer.stop();
+        }
+
+        Alert alert = new Alert(AlertType.INFORMATION);
+        alert.setTitle("Koniec Gry!");
+
+        String winnerText;
+        if (team1Score > team2Score) {
+            winnerText = "Wygrywa drużyna " + team1Name + "!";
+        } else if (team2Score > team1Score) {
+            winnerText = "Wygrywa drużyna " + team2Name + "!";
+        } else {
+            winnerText = "Remis!";
+        }
+
+        int roundsPlayed = Math.min(currentRoundNumber -1, MAX_ROUNDS);
+        if (currentRoundNumber > MAX_ROUNDS) roundsPlayed = MAX_ROUNDS;
+
+        alert.setHeaderText("Koniec gry po " + roundsPlayed + " rundach!\n" + winnerText);
+        alert.setContentText(
+                "Wynik końcowy:\n" +
+                        team1Name + ": " + team1Score + " pkt\n" +
+                        team2Name + ": " + team2Score + " pkt"
+        );
+
+        DialogPane dialogPane = alert.getDialogPane();
+        try {
+            dialogPane.getStylesheets().add(getClass().getResource("/styles.css").toExternalForm());
+            dialogPane.getStyleClass().add("custom-alert");
+        } catch (Exception e) {
+            System.err.println("Nie można załadować stylów dla alertu końca gry: " + e.getMessage());
+        }
+        dialogPane.setPrefSize(500, 300);
+
+        ButtonType closeButton = new ButtonType("Zamknij grę", ButtonBar.ButtonData.OK_DONE);
+        alert.getButtonTypes().setAll(closeButton);
+
+        alert.showAndWait();
+        stage.close();
+    }
 
     private void resetTimer() {
+        if (gameFinished) return;
+
         if (timer != null) {
             timer.stop();
         }
         timeLeft = initialAnswerTime;
         updateTimerDisplay();
-        startTimer();
+
+        answerField.setDisable(false);
+        answerField.requestFocus();
+
+        timer = new Timeline(
+                new KeyFrame(Duration.seconds(1), e -> {
+                    if (gameFinished) {
+                        timer.stop();
+                        return;
+                    }
+                    timeLeft--;
+                    updateTimerDisplay();
+                    if (timeLeft <= 0) {
+                        timer.stop();
+                        answerField.setDisable(true);
+                        Platform.runLater(this::handleTimeOut);
+                    }
+                })
+        );
+        timer.setCycleCount(Timeline.INDEFINITE);
+        timer.play();
+        timerWasRunningBeforeAlert = true;
     }
 
     private void switchTeam() {
         isTeam1Turn = !isTeam1Turn;
-        answerField.setDisable(false);
-        answerField.requestFocus();
         updateTeamLabels();
         updateCurrentPlayerLabel();
+        System.out.println("Zmiana tury. Teraz odpowiada: " + getCurrentTeamName() + " Gracz index: " + (isTeam1Turn ? team1PlayerIndex : team2PlayerIndex));
+        answerField.setDisable(false);
+        answerField.requestFocus();
         resetTimer();
-        System.out.println("Zmiana tury. Teraz odpowiada: " + getCurrentTeamName());
     }
 
     private String getCurrentTeamName() {
@@ -851,6 +1070,18 @@ public class GameFrame {
     }
 
     private void showInfo(String message) {
+        showInfo(message, true);
+    }
+
+    private void showInfo(String message, boolean resetTimerAfter) {
+        if (gameFinished && currentRoundNumber > MAX_ROUNDS) return;
+
+        boolean wasTimerRunning = (timer != null && timer.getStatus() == Timeline.Status.RUNNING);
+        if (wasTimerRunning) {
+            timer.stop();
+            System.out.println("Timer zatrzymany przez alert: " + message);
+        }
+
         Alert alert = new Alert(AlertType.INFORMATION);
         alert.setTitle("Informacja");
         alert.setHeaderText(null);
@@ -868,6 +1099,13 @@ public class GameFrame {
     }
 
     private void showCriticalError(String message) {
+        if (timer != null && timer.getStatus() == Timeline.Status.RUNNING) {
+            timer.stop();
+            System.out.println("Timer zatrzymany przez błąd krytyczny.");
+        }
+        gameFinished = true;
+        answerField.setDisable(true);
+
         Alert alert = new Alert(AlertType.ERROR);
         alert.setTitle("Błąd krytyczny");
         alert.setHeaderText("Wystąpił poważny błąd!");
@@ -879,7 +1117,12 @@ public class GameFrame {
         } catch (Exception e) {
             System.err.println("Nie można załadować stylów dla alertu błędu: " + e.getMessage());
         }
-        alert.showAndWait();
+
+        if (Platform.isFxApplicationThread()) {
+            alert.showAndWait();
+        } else {
+            Platform.runLater(() -> alert.showAndWait()); // Ensure lambda is used
+        }
     }
 
     public void show() {
