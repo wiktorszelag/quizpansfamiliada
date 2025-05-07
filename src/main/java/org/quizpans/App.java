@@ -2,17 +2,26 @@ package org.quizpans;
 
 import javafx.application.Application;
 import javafx.stage.Stage;
-import org.quizpans.gui.TeamSetupFrame;
+// Zmień import z MainMenuFrame na SplashScreen
+import org.quizpans.gui.SplashScreen;
 
 public class App extends Application {
     @Override
     public void start(Stage primaryStage) {
-        // Przekazujemy primaryStage do TeamSetupFrame
-        TeamSetupFrame teamSetupFrame = new TeamSetupFrame(primaryStage);
-        teamSetupFrame.show(); // show() w TeamSetupFrame powinno teraz obsługiwać wyświetlanie
+        // Uruchom SplashScreen jako pierwszy
+        SplashScreen splashScreen = new SplashScreen(primaryStage);
+        splashScreen.show();
     }
 
     public static void main(String[] args) {
+        // Ustawienie sterownika JDBC przed uruchomieniem JavaFX (dobre praktyki)
+        try {
+            Class.forName("com.mysql.cj.jdbc.Driver");
+        } catch (ClassNotFoundException e) {
+            System.err.println("Błąd: Nie znaleziono sterownika MySQL JDBC!");
+            // Można tu zakończyć aplikację lub pokazać błąd graficzny później
+            // Platform.exit();
+        }
         launch(args);
     }
 }

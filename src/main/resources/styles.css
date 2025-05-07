@@ -1,10 +1,138 @@
+/* === Splash Screen Styles === */
+.splash-title {
+    -fx-font-family: "Arial Black", "Impact", sans-serif;
+    -fx-font-size: 150px;
+    -fx-font-weight: bold;
+    -fx-text-fill: gold;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.8), 35, 0, 0, 12);
+    -fx-alignment: center;
+    -fx-padding: 20px 0;
+}
+
+/* Style for ProgressIndicator node itself on splash screen */
+.splash-progress-indicator {
+    /* Size (match Label icon size in Java) */
+    -fx-min-width: 19px;
+    -fx-min-height: 19px;
+    -fx-max-width: 19px;
+    -fx-max-height: 19px;
+    -fx-pref-width: 19px;
+    -fx-pref-height: 19px;
+
+    /* --- Remove background/border --- */
+    -fx-background-color: transparent;
+    -fx-border-width: 0;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+    -fx-background-insets: 0;
+    -fx-effect: null;
+}
+
+/* Target inner parts aggressively */
+.splash-progress-indicator > .determinate-indicator > .percentage,
+.splash-progress-indicator > .determinate-indicator > .indicator,
+.splash-progress-indicator > .indeterminate-indicator > .segment, /* Segments WILL get color below */
+.splash-progress-indicator > .indeterminate-indicator > .dot,
+.splash-progress-indicator > .indicator,
+.splash-progress-indicator > .progress,
+.splash-progress-indicator .progress-indicator {
+    -fx-background-color: transparent;
+    -fx-border-width: 0;
+    -fx-padding: 0;
+    -fx-background-insets: 0;
+    -fx-effect: null;
+}
+
+/* Restore color ONLY for the spinning segments */
+.splash-progress-indicator > .indeterminate-indicator > .segment {
+    -fx-background-color: gold;
+    /* -fx-scale-x: 0.8; */ /* Optional scaling */
+    /* -fx-scale-y: 0.8; */
+}
+
+/* Style for the status label */
+.splash-status-label {
+    -fx-font-size: 14px;
+    -fx-text-fill: lightgray; /* Domyślny kolor */
+    -fx-min-height: 20px; /* Minimalna wysokość dla zachowania layoutu */
+    -fx-alignment: center;
+}
+
+
+/* === Main Menu Styles === */
+.main-menu-title {
+    -fx-font-family: "Arial Black", "Impact", sans-serif;
+    -fx-font-size: 82px;
+    -fx-font-weight: bold;
+    -fx-text-fill: gold;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.75), 25, 0, 0, 8);
+    -fx-padding-bottom: 20px;
+}
+
+.main-menu-button {
+    -fx-font-size: 26px;
+    -fx-font-weight: bold;
+    -fx-text-fill: white;
+    -fx-background-color:
+        linear-gradient(from 0% 0% to 0% 100%, rgba(50,50,80,0.7), rgba(30,30,50,0.8)),
+        rgba(0,0,0,0.3);
+    -fx-background-radius: 15px;
+    -fx-border-color: rgba(120, 120, 150, 0.7);
+    -fx-border-width: 2px;
+    -fx-border-radius: 15px;
+    -fx-padding: 18px 35px;
+    -fx-min-width: 380px;
+    -fx-pref-width: 380px;
+    -fx-alignment: center;
+    -fx-effect:
+        dropshadow(gaussian, rgba(0,0,0,0.6), 12, 0, 4, 4),
+        innershadow(gaussian, rgba(255,255,255,0.1), 10, 0, 0, 1);
+    -fx-cursor: hand;
+    -fx-background-insets: 0, 1;
+    -fx-border-insets: 0;
+}
+
+.main-menu-button:hover {
+    -fx-text-fill: gold;
+    -fx-background-color:
+        linear-gradient(from 0% 0% to 0% 100%, rgba(60,60,90,0.8), rgba(40,40,60,0.9)),
+        rgba(0,0,0,0.4);
+    -fx-border-color: gold;
+    -fx-effect:
+        dropshadow(gaussian, rgba(255,215,0,0.5), 15, 0, 0, 0),
+        innershadow(gaussian, rgba(255,255,255,0.15), 12, 0, 0, 1);
+}
+
+.main-menu-button:pressed {
+    -fx-background-color:
+        linear-gradient(from 0% 0% to 0% 100%, rgba(20,20,40,0.9), rgba(40,40,60,0.8));
+    -fx-effect:
+        innershadow(gaussian, rgba(0,0,0,0.4), 10, 0, 2, 2),
+        dropshadow(gaussian, rgba(0,0,0,0.3), 8, 0, 1, 1);
+    -fx-text-fill: #ffeb3b;
+}
+
+.main-menu-button:disabled {
+    -fx-opacity: 0.5;
+    -fx-text-fill: rgba(255,255,255,0.4);
+    -fx-background-color: rgba(80,80,80,0.4);
+    -fx-border-color: rgba(150,150,150,0.3);
+    -fx-effect: none;
+}
+
+/* === Globalne Ustawienia === */
+.root {
+    /* -fx-font-family: "System"; */
+}
+
+/* === Style dla Alertów === */
 .custom-alert {
     -fx-background-color: linear-gradient(to bottom right, #1a2a6c, #b21f1f);
     -fx-border-color: gold;
-    -fx-border-width: 2px;
-    -fx-border-radius: 10px;
-    -fx-background-radius: 10px;
-    -fx-padding: 20px;
+    -fx-border-width: 1.5px;
+    -fx-border-radius: 12px;
+    -fx-background-radius: 12px;
+    -fx-padding: 25px;
 }
 
 .custom-alert .dialog-pane {
@@ -13,310 +141,393 @@
 
 .custom-alert .label {
     -fx-text-fill: white;
-    -fx-font-size: 16px;
-    -fx-font-weight: bold;
+    -fx-font-size: 15px;
 }
 
 .custom-alert .header-panel {
-    -fx-background-color: rgba(0, 0, 0, 0.3);
-    -fx-padding: 10px;
+    -fx-background-color: rgba(0, 0, 0, 0.25);
+    -fx-padding: 10px 15px;
 }
 
 .custom-alert .header-panel .label {
-    -fx-font-size: 18px;
+    -fx-font-size: 17px;
     -fx-text-fill: gold;
+    -fx-font-weight: bold;
 }
 
 .custom-alert .button {
     -fx-background-color: gold;
     -fx-text-fill: #182848;
     -fx-font-weight: bold;
-    -fx-background-radius: 10px;
-    -fx-padding: 8px 16px;
+    -fx-font-size: 14px;
+    -fx-background-radius: 8px;
+    -fx-padding: 8px 20px;
     -fx-cursor: hand;
 }
 
 .custom-alert .button:hover {
     -fx-background-color: #ffeb3b;
-    -fx-effect: dropshadow(gaussian, rgba(255, 215, 0, 0.5), 10, 0, 0, 0);
+    -fx-effect: dropshadow(gaussian, rgba(255, 215, 0, 0.4), 10, 0, 0, 0);
 }
 
+/* === Style dla Pól Tekstowych (ogólne) === */
 .text-field {
-    -fx-font-size: 16px;
-    -fx-background-radius: 10px;
-    -fx-border-radius: 10px;
-    -fx-border-color: silver;
+    -fx-font-size: 18px;
+    -fx-background-radius: 8px;
+    -fx-border-radius: 8px;
+    -fx-border-color: rgba(255, 255, 255, 0.25);
     -fx-border-width: 1px;
     -fx-padding: 8px 12px;
-    -fx-prompt-text-fill: dimgrey;
-    -fx-text-fill: black;
-    -fx-background-color: white;
+    -fx-prompt-text-fill: rgba(255, 255, 255, 0.5);
+    -fx-text-fill: white;
+    -fx-background-color: rgba(0, 0, 0, 0.25);
+    -fx-pref-height: 42px;
 }
 
 .text-field:focused {
-    -fx-border-color: gold;
-    -fx-border-width: 2px;
-    -fx-background-color: white;
+    -fx-border-color: #b21f1f;
+    -fx-border-width: 1.5px;
+    -fx-background-color: rgba(0, 0, 0, 0.35);
+    -fx-effect: dropshadow(gaussian, rgba(178, 31, 31, 0.4), 6, 0, 0, 0);
 }
 
+/* === Style dla ComboBox (Ustawienia i globalne) === */
 .combo-box {
-    -fx-font-size: 16px;
-    -fx-background-radius: 10px;
-    -fx-border-radius: 10px;
-    -fx-border-color: rgba(255, 255, 255, 0.5);
-    -fx-border-width: 1px;
-    -fx-background-color: rgba(255, 255, 255, 0.9);
-    -fx-cursor: hand;
-}
-
-.combo-box .list-cell {
-    -fx-background-color: rgba(255, 255, 255, 0.9);
-    -fx-text-fill: black;
-}
-
-.combo-box .list-cell:hover {
-    -fx-background-color: gold;
-    -fx-text-fill: #182848;
-}
-
-.spinner {
-    -fx-font-size: 16px;
-    -fx-background-radius: 10px;
-    -fx-border-radius: 10px;
-    -fx-border-color: rgba(255, 255, 255, 0.5);
-    -fx-border-width: 1px;
-}
-.spinner .text-field {
-     -fx-background-color: rgba(255, 255, 255, 0.9);
-     -fx-border-color: transparent;
- }
-.spinner .increment-arrow-button, .spinner .decrement-arrow-button {
-    -fx-background-color: gold;
+    -fx-font-size: 18px;
     -fx-background-radius: 8px;
+    -fx-border-radius: 8px;
+    -fx-border-color: rgba(255, 255, 255, 0.25);
+    -fx-border-width: 1px;
+    -fx-background-color: rgba(0, 0, 0, 0.25);
+    -fx-text-fill: white;
+    -fx-prompt-text-fill: rgba(255, 255, 255, 0.6);
     -fx-cursor: hand;
+    -fx-pref-height: 42px;
+    -fx-padding: 0 0 0 10px;
 }
-.spinner .increment-arrow-button:hover, .spinner .decrement-arrow-button:hover {
-    -fx-background-color: #ffeb3b;
+.combo-box .arrow-button {
+    -fx-background-color: rgba(255, 255, 255, 0.1);
+    -fx-background-radius: 0 8px 8px 0;
+    -fx-padding: 0 8px 0 5px;
 }
-.spinner .increment-arrow, .spinner .decrement-arrow {
-    -fx-background-color: #182848;
+.combo-box .arrow-button .arrow {
+    -fx-background-color: rgba(255, 255, 255, 0.8);
+    -fx-pref-width: 7px;
+    -fx-pref-height: 7px;
+}
+.combo-box > .list-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: white;
+    -fx-font-size: 18px;
+    -fx-padding: 8px 0px 8px 0px;
+}
+.combo-box-popup .list-view {
+    -fx-background-color: rgba(30, 30, 50, 0.9);
+    -fx-border-color: rgba(255, 255, 255, 0.2);
+    -fx-border-width: 1px;
+    -fx-background-insets: 0;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.5), 10, 0, 2, 2);
+}
+.combo-box-popup .list-view .list-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: rgba(255, 255, 255, 0.9);
+    -fx-font-size: 17px;
+    -fx-padding: 10px 15px;
+}
+.combo-box-popup .list-view .list-cell:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.1);
+    -fx-text-fill: white;
+}
+.combo-box-popup .list-view .list-cell:filled:selected,
+.combo-box-popup .list-view .list-cell:filled:selected:hover {
+    -fx-background-color: rgba(178, 31, 31, 0.7);
+    -fx-text-fill: white;
 }
 
+/* === Style dla Slider (Ustawienia Czasu) === */
+.slider {
+    -fx-pref-height: 42px;
+}
+.slider .track {
+    -fx-background-color: rgba(0, 0, 0, 0.35);
+    -fx-background-radius: 4px;
+    -fx-pref-height: 10px;
+}
+.slider:focused .track {
+    -fx-background-color: rgba(0, 0, 0, 0.5);
+}
+.slider .thumb {
+    -fx-background-color: gold;
+    -fx-pref-width: 22px;
+    -fx-pref-height: 22px;
+    -fx-background-radius: 11px;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.4), 6, 0, 0, 1);
+}
+.slider:focused .thumb {
+    -fx-background-color: #ffeb3b;
+    -fx-effect: dropshadow(gaussian, rgba(255,215,0,0.6), 9, 0, 0, 1);
+}
+.slider .axis {
+    -fx-tick-label-fill: rgba(255, 255, 255, 0.75);
+    -fx-font-size: 11px;
+    -fx-tick-length: 8px;
+}
+.slider .axis .minor-tick-mark {
+     -fx-stroke: rgba(255, 255, 255, 0.3);
+     -fx-stroke-width: 1px;
+}
+.slider .major-tick-mark {
+    -fx-stroke: rgba(255, 255, 255, 0.5);
+    -fx-stroke-width: 1px;
+}
+
+
+/* === Style dla Timer (jeśli istnieje w GameFrame) === */
 .timer-normal {
     -fx-text-fill: gold;
     -fx-font-weight: bold;
     -fx-font-size: 32px;
-    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.8), 10, 0, 0, 0);
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.7), 8, 0, 0, 0);
 }
-
 .timer-critical {
     -fx-text-fill: #ff4d4d;
     -fx-font-weight: bold;
     -fx-font-size: 32px;
-    -fx-effect: dropshadow(gaussian, rgba(255, 0, 0, 0.7), 15, 0, 0, 0);
+    -fx-effect: dropshadow(gaussian, rgba(255, 0, 0, 0.6), 12, 0, 0, 0);
 }
 
+/* === Style dla Aktywnej/Nieaktywnej Drużyny === */
 .team-active {
     -fx-text-fill: gold;
     -fx-font-weight: bold;
-    -fx-effect: dropshadow(gaussian, rgba(255, 215, 0, 0.6), 15, 0, 0, 0);
+    -fx-effect: dropshadow(gaussian, rgba(255, 215, 0, 0.5), 12, 0, 0, 0);
 }
-
 .team-inactive {
-    -fx-text-fill: white;
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.5), 5, 0.5, 0, 1);
+    -fx-text-fill: rgba(255, 255, 255, 0.7);
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.4), 4, 0.5, 0, 1);
 }
 
-.error-panel-left {
-    -fx-background-color: rgba(0, 0, 0, 0.2);
-    -fx-border-color: rgba(255, 255, 255, 0.4);
-    -fx-border-width: 2px;
-    -fx-border-radius: 0 30px 30px 0;
-    -fx-background-radius: 0 30px 30px 0;
-    -fx-padding: 20px 10px 20px 20px;
-    -fx-alignment: center;
-    -fx-spacing: 30px;
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.4), 10, 0, -3, 0);
-}
-
-.error-panel-right {
-    -fx-background-color: rgba(0, 0, 0, 0.2);
-    -fx-border-color: rgba(255, 255, 255, 0.4);
-    -fx-border-width: 2px;
-    -fx-border-radius: 30px 0 0 30px;
-    -fx-background-radius: 30px 0 0 30px;
-    -fx-padding: 20px 20px 20px 10px;
-    -fx-alignment: center;
-    -fx-spacing: 30px;
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.4), 10, 0, 3, 0);
-}
-
-.error-circle {
-    -fx-min-width: 95px;
-    -fx-min-height: 95px;
-    -fx-pref-width: 95px;
-    -fx-pref-height: 95px;
-    -fx-alignment: center;
-    -fx-font-size: 64px;
-    -fx-font-weight: bold;
-    -fx-text-fill: white;
-    -fx-background-color: radial-gradient(center 50% 50%, radius 50%, rgba(255,50,50,0.6), rgba(200,0,0,0.9));
-    -fx-background-radius: 50%;
-    -fx-border-radius: 50%;
-    -fx-border-color: rgba(255, 100, 100, 0.8);
-    -fx-border-width: 2px;
-    -fx-effect: dropshadow(gaussian, rgba(255, 0, 0, 0.5), 15, 0, 0, 0), innershadow(gaussian, rgba(0,0,0,0.4), 10, 0, 2, 2);
-}
-
-.error-circle-empty {
-    -fx-min-width: 95px;
-    -fx-min-height: 95px;
-    -fx-pref-width: 95px;
-    -fx-pref-height: 95px;
-    -fx-alignment: center;
-    -fx-background-color: rgba(255, 255, 255, 0.1);
+/* === Panele Błędów === */
+.error-panel-left, .error-panel-right {
+    -fx-background-color: rgba(0, 0, 0, 0.25);
     -fx-border-color: rgba(255, 255, 255, 0.3);
-    -fx-border-width: 2px;
+    -fx-border-width: 1.5px;
+    -fx-padding: 20px;
+    -fx-alignment: center;
+    -fx-spacing: 25px;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 8, 0, 0, 0);
+}
+.error-panel-left {
+    -fx-border-radius: 0 25px 25px 0;
+    -fx-background-radius: 0 25px 25px 0;
+}
+.error-panel-right {
+    -fx-border-radius: 25px 0 0 25px;
+    -fx-background-radius: 25px 0 0 25px;
+}
+.error-circle {
+    -fx-min-width: 80px;
+    -fx-min-height: 80px;
+    -fx-pref-width: 80px;
+    -fx-pref-height: 80px;
+    -fx-alignment: center;
+    -fx-font-size: 50px;
+    -fx-font-weight: bold;
+    -fx-text-fill: white;
+    -fx-background-color: radial-gradient(center 50% 50%, radius 50%, rgba(200,0,0,0.7), rgba(150,0,0,0.9));
     -fx-background-radius: 50%;
     -fx-border-radius: 50%;
-    -fx-effect: innershadow(gaussian, rgba(0,0,0,0.2), 5, 0, 1, 1);
+    -fx-border-color: rgba(255, 50, 50, 0.7);
+    -fx-border-width: 1.5px;
+    -fx-effect: dropshadow(gaussian, rgba(200, 0, 0, 0.4), 12, 0, 0, 0), innershadow(gaussian, rgba(0,0,0,0.3), 8, 0, 1, 1);
+}
+.error-circle-empty {
+    -fx-min-width: 80px;
+    -fx-min-height: 80px;
+    -fx-pref-width: 80px;
+    -fx-pref-height: 80px;
+    -fx-alignment: center;
+    -fx-background-color: rgba(255, 255, 255, 0.05);
+    -fx-border-color: rgba(255, 255, 255, 0.15);
+    -fx-border-width: 1.5px;
+    -fx-background-radius: 50%;
+    -fx-border-radius: 50%;
+    -fx-effect: innershadow(gaussian, rgba(0,0,0,0.15), 4, 0, 1, 1);
 }
 
+/* === Panel Odpowiedzi (w grze) === */
 .answer-panel {
-    -fx-background-color: rgba(255, 255, 255, 0.2);
-    -fx-background-radius: 20px;
-    -fx-padding: 25px;
-    -fx-spacing: 15px;
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 10, 0, 0, 0);
+    -fx-background-color: rgba(0, 0, 0, 0.2);
+    -fx-background-radius: 15px;
+    -fx-padding: 20px;
+    -fx-spacing: 12px;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.25), 8, 0, 0, 0);
     -fx-alignment: center;
 }
-
 .answer-pane {
-    -fx-background-color: linear-gradient(to right, rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.6));
-    -fx-background-radius: 15px;
-    -fx-padding: 15px 25px 15px 25px;
-    -fx-min-width: 600px;
-    -fx-max-width: 1100px;
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.7), 10, 0.5, 0, 2);
+    -fx-background-color: linear-gradient(to right, rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.45));
+    -fx-background-radius: 12px;
+    -fx-padding: 12px 20px;
+    -fx-min-width: 550px;
+    -fx-max-width: 1000px;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.5), 8, 0.5, 0, 1.5);
 }
-
 .answer-text-label {
-    -fx-font-family: "Arial", sans-serif;
-    -fx-font-size: 30px;
-    -fx-font-weight: bold;
+    -fx-font-family: "System", sans-serif;
+    -fx-font-size: 26px;
+    -fx-font-weight: normal;
     -fx-background-color: transparent;
     -fx-padding: 0;
 }
-
 .points-label {
-    -fx-font-family: "Arial", sans-serif;
-    -fx-font-size: 28px;
+    -fx-font-family: "System", sans-serif;
+    -fx-font-size: 24px;
     -fx-font-weight: bold;
     -fx-background-color: transparent;
     -fx-padding: 0;
 }
-
-.answer-text-label.hidden {
-     -fx-text-fill: rgba(255, 255, 255, 0.8);
+.answer-text-label.hidden, .points-label.hidden {
+     -fx-text-fill: rgba(255, 255, 255, 0.6);
 }
-
 .answer-pane.answer-revealed {
-    -fx-background-color: rgb(113, 211, 0);
-    -fx-effect: null;
+    -fx-background-color: #b21f1f;
+    -fx-effect: dropshadow(gaussian, rgba(178, 31, 31, 0.5), 10, 0, 0, 0);
+}
+.answer-text-label.revealed, .points-label.revealed {
+    -fx-text-fill: white;
 }
 
-.answer-text-label.revealed {
-    -fx-text-fill: #000000;
-    -fx-background-color: transparent;
-}
-
-.points-label.revealed {
-    -fx-text-fill: #000000;
-}
-
+/* === Wskaźnik Postępu (Spinner ładowania ogólny, jeśli jest używany poza splash) === */
 .progress-indicator {
     -fx-progress-color: gold;
-    -fx-min-width: 60px;
-    -fx-min-height: 60px;
+    -fx-min-width: 50px;
+    -fx-min-height: 50px;
 }
 
+/* === Panel Ustawień Drużyn (TeamSetupFrame) === */
 .team-setup-panel {
-    -fx-background-color: rgba(255, 255, 255, 0.1);
-    -fx-background-radius: 20px;
-    -fx-border-color: rgba(255, 255, 255, 0.25);
-    -fx-border-radius: 20px;
-    -fx-border-width: 1.5px;
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 15, 0.4, 0, 2);
-}
-
-.team-name-field {
-    -fx-font-size: 16px;
-    -fx-background-radius: 8px;
-    -fx-border-radius: 8px;
-    -fx-border-color: rgba(255, 255, 255, 0.4);
-    -fx-padding: 10px 15px;
-    -fx-prompt-text-fill: derive(dimgrey, -20%);
-    -fx-text-fill: black;
-    -fx-background-color: rgba(255, 255, 255, 0.9);
-}
-
-.team-name-field:focused {
-    -fx-border-color: gold;
-    -fx-border-width: 2px;
-    -fx-background-color: white;
-    -fx-effect: dropshadow(gaussian, rgba(255,215,0,0.3), 8, 0, 0, 0);
-}
-
-.player-card {
-    -fx-background-color: rgba(0, 0, 0, 0.2);
-    -fx-background-radius: 12px;
-    -fx-padding: 15px;
+    -fx-background-color: rgba(0, 0, 0, 0.15);
+    -fx-background-radius: 15px;
     -fx-border-color: rgba(255, 255, 255, 0.15);
-    -fx-border-radius: 12px;
+    -fx-border-radius: 15px;
     -fx-border-width: 1px;
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 8, 0.2, 0, 1);
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.25), 12, 0.3, 0, 1.5);
 }
-
-.player-number-label {
-    -fx-font-size: 14px;
-    -fx-text-fill: rgba(255, 255, 255, 0.7);
-    -fx-font-weight: normal;
-    -fx-padding-bottom: 5px;
-}
-
-.player-name-field {
-    -fx-font-size: 15px;
+.team-name-field {
+    -fx-font-size: 18px;
     -fx-background-radius: 6px;
     -fx-border-radius: 6px;
-    -fx-border-color: rgba(255, 255, 255, 0.3);
-    -fx-padding: 8px 12px;
-    -fx-prompt-text-fill: derive(darkgrey, -10%);
-    -fx-text-fill: #1e1e1e;
-    -fx-background-color: rgba(255, 255, 255, 0.85);
+    -fx-border-color: rgba(255, 255, 255, 0.2);
+    -fx-padding: 10px 15px;
+    -fx-prompt-text-fill: rgba(255, 255, 255, 0.4);
+    -fx-text-fill: white;
+    -fx-background-color: rgba(0, 0, 0, 0.2);
+    -fx-pref-height: 44px;
 }
-
-.player-name-field:focused {
-    -fx-border-color: #FFD700;
+.team-name-field:focused {
+    -fx-border-color: #b21f1f;
     -fx-border-width: 1.5px;
-    -fx-background-color: white;
-    -fx-effect: dropshadow(gaussian, rgba(255,215,0,0.2), 5, 0, 0, 0);
+    -fx-background-color: rgba(0, 0, 0, 0.3);
+    -fx-effect: dropshadow(gaussian, rgba(178, 31, 31, 0.3), 6, 0, 0, 0);
 }
 
+/* === Karta Gracza (w panelu ustawień drużyn) === */
+.player-card {
+    -fx-background-color: rgba(0, 0, 0, 0.25);
+    -fx-background-radius: 10px;
+    -fx-padding: 12px;
+    -fx-border-color: rgba(255, 255, 255, 0.1);
+    -fx-border-radius: 10px;
+    -fx-border-width: 1px;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 6, 0.1, 0, 0.5);
+}
+.player-number-label {
+    -fx-font-size: 13px;
+    -fx-text-fill: rgba(255, 255, 255, 0.6);
+    -fx-font-weight: normal;
+    -fx-padding-bottom: 4px;
+}
+.player-name-field {
+    -fx-font-size: 17px;
+    -fx-background-radius: 5px;
+    -fx-border-radius: 5px;
+    -fx-border-color: rgba(255, 255, 255, 0.15);
+    -fx-padding: 8px 10px;
+    -fx-prompt-text-fill: rgba(255, 255, 255, 0.35);
+    -fx-text-fill: white;
+    -fx-background-color: rgba(0, 0, 0, 0.2);
+    -fx-pref-height: 40px;
+}
+.player-name-field:focused {
+    -fx-border-color: #b21f1f;
+    -fx-border-width: 1.5px;
+    -fx-background-color: rgba(0, 0, 0, 0.3);
+    -fx-effect: dropshadow(gaussian, rgba(178, 31, 31, 0.25), 5, 0, 0, 0);
+}
+
+/* === ScrollPane (Pasek Przewijania) === */
 .scroll-pane {
     -fx-background-color: transparent;
 }
-
 .scroll-pane > .viewport {
    -fx-background-color: transparent;
 }
-
 .no-scroll-bar > .scroll-bar:vertical,
 .no-scroll-bar > .scroll-bar:horizontal {
     -fx-opacity: 0;
     -fx-pref-width: 0;
     -fx-pref-height: 0;
+    -fx-padding: 0;
 }
 .no-scroll-bar {
      -fx-background-insets: 0;
      -fx-padding: 0;
+}
+
+/* === Instruction Window Styles === */
+.instruction-text-area {
+    -fx-font-size: 16px;
+    -fx-text-fill: rgba(255, 255, 255, 0.9);
+    -fx-background-color: rgba(0, 0, 0, 0.2);
+    -fx-border-color: rgba(255, 255, 255, 0.2);
+    -fx-border-width: 1px;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+    -fx-padding: 10px;
+}
+.instruction-text-area .scroll-bar:vertical,
+.instruction-text-area .scroll-bar:horizontal {
+    -fx-background-color: rgba(0, 0, 0, 0.3);
+    -fx-background-radius: 5px;
+    -fx-padding: 2px;
+}
+.instruction-text-area .scroll-bar .thumb {
+    -fx-background-color: rgba(255, 255, 255, 0.3);
+    -fx-background-radius: 5px;
+    -fx-background-insets: 2px;
+}
+.instruction-text-area .scroll-bar .thumb:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.5);
+}
+.instruction-text-area .scroll-bar .increment-button,
+.instruction-text-area .scroll-bar .decrement-button {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+    -fx-pref-height: 0;
+    -fx-pref-width: 0;
+}
+.instruction-text-area .scroll-bar .increment-arrow,
+.instruction-text-area .scroll-bar .decrement-arrow {
+    -fx-shape: " ";
+    -fx-padding: 0;
+}
+.instruction-text-area .corner {
+    -fx-background-color: transparent;
+}
+.instruction-text-area > .viewport {
+   -fx-background-color: transparent;
+}
+.instruction-text-area .content {
+   -fx-background-color: transparent;
+   -fx-padding: 5px;
 }

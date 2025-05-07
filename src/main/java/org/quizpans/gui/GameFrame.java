@@ -980,7 +980,7 @@ public class GameFrame {
         try {
             String cssPath = getClass().getResource("/styles.css").toExternalForm();
             if (cssPath != null && !dialogPane.getStylesheets().contains(cssPath)) { dialogPane.getStylesheets().add(cssPath); dialogPane.getStyleClass().add("custom-alert"); }
-        } catch (Exception e) { }
+        } catch (Exception e) { /* Ignore */ }
 
         ButtonType returnButton = new ButtonType("Wróć do ustawień", ButtonBar.ButtonData.BACK_PREVIOUS);
         ButtonType closeButton = new ButtonType("Zamknij aplikację", ButtonBar.ButtonData.CANCEL_CLOSE);
