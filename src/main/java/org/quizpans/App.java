@@ -7,8 +7,9 @@ import org.quizpans.gui.TeamSetupFrame;
 public class App extends Application {
     @Override
     public void start(Stage primaryStage) {
-        TeamSetupFrame teamSetupFrame = new TeamSetupFrame();
-        teamSetupFrame.show();
+        // Przekazujemy primaryStage do TeamSetupFrame
+        TeamSetupFrame teamSetupFrame = new TeamSetupFrame(primaryStage);
+        teamSetupFrame.show(); // show() w TeamSetupFrame powinno teraz obsługiwać wyświetlanie
     }
 
     public static void main(String[] args) {

@@ -1,20 +1,15 @@
 package org.quizpans.gui;
 
-import javafx.animation.FadeTransition;
-import javafx.animation.KeyFrame;
-import javafx.animation.KeyValue;
-import javafx.animation.ScaleTransition;
-import javafx.animation.Timeline;
-import javafx.animation.Interpolator;
+import javafx.animation.*;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.Scene;
-import javafx.scene.control.Button;
-import javafx.scene.control.Label;
-// Usunięto import ProgressIndicator
+import javafx.scene.Parent;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
+import javafx.scene.control.Button;
+import javafx.scene.control.DialogPane;
+import javafx.scene.control.Label;
 import javafx.scene.effect.DropShadow;
 import javafx.scene.effect.Glow;
 import javafx.scene.image.Image;
@@ -36,7 +31,7 @@ import java.util.List;
 import java.util.Random;
 
 public class TeamSelectionFrame {
-    private final Stage stage;
+    private Stage stage;
     private final String selectedCategory;
     private final int answerTime;
     private final String team1Name;
@@ -45,90 +40,200 @@ public class TeamSelectionFrame {
     private final List<String> team2Members;
     private GameService gameService;
     private boolean team1Starts;
-
     private volatile boolean loadingComplete = false;
-
     private Label loadingLabel;
-    // Usunięto pole progressIndicator
     private Button startGameButton;
     private Timeline loadingTextTimeline;
+    private BorderPane mainPane;
+    private boolean uiInitialized = false;
 
-
-    public TeamSelectionFrame(String selectedCategory, int answerTime, String team1Name, String team2Name, List<String> team1Members, List<String> team2Members) {
-        this.stage = new Stage();
+    public TeamSelectionFrame(String selectedCategory, int answerTime, String team1Name, String team2Name, List<String> team1Members, List<String> team2Members, Stage stage) {
         this.selectedCategory = selectedCategory;
         this.answerTime = answerTime;
         this.team1Name = team1Name;
         this.team2Name = team2Name;
         this.team1Members = team1Members;
         this.team2Members = team2Members;
-        initializeFrame();
-        initUI();
+        this.stage = stage;
+
+    }
+
+    public void initializeFrameContent() {
+
+        if (!uiInitialized) {
+            initUI();
+            uiInitialized = true;
+        } else {
+
+        }
+
+        setFrameProperties();
+
+        if (mainPane == null) {
+
+
+            return;
+        }
 
         new Thread(this::initializeGameService).start();
+
+        if (stage.getScene() != null && !stage.getScene().getStylesheets().isEmpty()) {
+            if (mainPane.getStylesheets().isEmpty()) {
+                mainPane.getStylesheets().addAll(stage.getScene().getStylesheets());
+            }
+        } else {
+            try {
+                String cssPath = getClass().getResource("/styles.css").toExternalForm();
+                if (cssPath != null && mainPane.getStylesheets().isEmpty()) {
+                    mainPane.getStylesheets().add(cssPath);
+                } else if (cssPath == null) {
+
+                }
+            } catch (Exception e) {
+
+            }
+        }
+
+    }
+
+    private void setApplicationIcon() {
+        try {
+            InputStream logoStream = getClass().getResourceAsStream("/logo.png");
+            if (logoStream == null) {
+
+                return;
+            }
+            Image appIcon = new Image(logoStream);
+            if (appIcon.isError()) {
+
+                if (appIcon.getException() != null) {
+
+                }
+                logoStream.close();
+                return;
+            }
+            if (stage.getIcons().isEmpty()) {
+                stage.getIcons().add(appIcon);
+            }
+            logoStream.close();
+        } catch (Exception e) {
+
+        }
+    }
+
+
+    private void setFrameProperties() {
+        stage.setTitle("Familiada - Losowanie i Ładowanie Gry");
+        setApplicationIcon();
     }
 
     private void initializeGameService() {
+
         try {
             this.gameService = new GameService(selectedCategory);
+
+            if (this.gameService.getCurrentQuestion() == null) {
+
+                throw new RuntimeException("Nie udało się załadować pytania dla kategorii: " + selectedCategory + ". Kategoria może być pusta lub wystąpił błąd bazy danych.");
+            } else {
+
+            }
             loadingComplete = true;
+
+
             Platform.runLater(() -> {
+
                 if (loadingTextTimeline != null) {
                     loadingTextTimeline.stop();
+                } else {
+
                 }
-                if (loadingLabel != null) loadingLabel.setVisible(false);
-                // Usunięto ukrywanie progressIndicator
+                if (loadingLabel != null) {
+
+                    loadingLabel.setVisible(false);
+                } else {
+
+                }
+
                 if (startGameButton != null) {
+
                     startGameButton.setVisible(true);
                     startGameButton.setDisable(false);
                     FadeTransition ft = new FadeTransition(Duration.millis(500), startGameButton);
                     ft.setFromValue(0.0);
                     ft.setToValue(1.0);
                     ft.play();
+                } else {
+
                 }
+
             });
         } catch (Exception e) {
-            System.err.println("Krytyczny błąd inicjalizacji GameService: " + e.getMessage());
-            e.printStackTrace();
+
+            loadingComplete = false;
             Platform.runLater(() -> {
                 if (loadingTextTimeline != null) {
                     loadingTextTimeline.stop();
                 }
+                if (loadingLabel != null) {
+                    loadingLabel.setText("Błąd ładowania!");
+                    loadingLabel.setVisible(true);
+                } else {
+
+                }
+
+
                 Alert alert = new Alert(AlertType.ERROR);
-                alert.setTitle("Błąd krytyczny");
+                alert.setTitle("Błąd krytyczny ładowania");
                 alert.setHeaderText("Nie można załadować danych gry!");
-                alert.setContentText("Wystąpił błąd podczas ładowania pytań lub usługi gry.\nSprawdź połączenie z bazą danych i konfigurację.\n\n" + e.getMessage());
+                alert.setContentText("Wystąpił błąd: " + e.getMessage() + "\nSprawdź konsolę i logi serwera (jeśli dotyczy).");
+                try {
+                    DialogPane dialogPane = alert.getDialogPane();
+                    String cssPath = getClass().getResource("/styles.css").toExternalForm();
+                    if (cssPath != null && !dialogPane.getStylesheets().contains(cssPath)) {
+                        dialogPane.getStylesheets().add(cssPath);
+                        dialogPane.getStyleClass().add("custom-alert");
+                    }
+                } catch (Exception ex) {
+
+                }
                 alert.showAndWait();
-                stage.close();
+
+                TeamSetupFrame teamSetup = new TeamSetupFrame(stage);
+                Parent tsRoot = teamSetup.getRootPane();
+
+                if (tsRoot != null && stage.getScene() != null) {
+                    stage.getScene().setRoot(tsRoot);
+                    FadeTransition fadeIn = new FadeTransition(Duration.millis(300), tsRoot);
+                    fadeIn.setFromValue(0.0);
+                    fadeIn.setToValue(1.0);
+                    fadeIn.play();
+                } else {
+
+                    Platform.exit();
+                }
             });
         }
     }
-
-
-    private void initializeFrame() {
-        stage.setTitle("Familiada - Losowanie i Ładowanie Gry");
-        stage.setMaximized(true);
-        try {
-            InputStream logoStream = getClass().getResourceAsStream("/logo.png");
-            if (logoStream != null) {
-                stage.getIcons().add(new Image(logoStream));
-                logoStream.close();
-            } else {
-                System.err.println("Nie można załadować ikony aplikacji: /logo.png");
-            }
-        } catch (Exception e) {
-            System.err.println("Nie można załadować ikony: " + e.getMessage());
+    public Parent getRootPane() {
+        if (mainPane == null) {
+            initUI();
         }
+        return mainPane;
     }
 
+
     private void initUI() {
+        if (uiInitialized) {
+            return;
+        }
+
+        mainPane = new BorderPane();
         LinearGradient gradient = new LinearGradient(
                 0, 0, 1, 1, true, CycleMethod.NO_CYCLE,
                 new Stop(0, Color.web("#1a2a6c")),
                 new Stop(1, Color.web("#b21f1f"))
         );
-
-        BorderPane mainPane = new BorderPane();
         mainPane.setBackground(new Background(new BackgroundFill(gradient, CornerRadii.EMPTY, Insets.EMPTY)));
         mainPane.setPadding(new Insets(30));
 
@@ -148,6 +253,7 @@ public class TeamSelectionFrame {
         mainPane.setRight(team2InfoPanel);
         BorderPane.setMargin(team2InfoPanel, new Insets(0, 30, 0, 30));
 
+
         VBox centerPanel = new VBox(20);
         centerPanel.setAlignment(Pos.CENTER);
         centerPanel.setPadding(new Insets(40));
@@ -156,6 +262,7 @@ public class TeamSelectionFrame {
         loadingLabel = new Label("Ładowanie gry");
         loadingLabel.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 20));
         loadingLabel.setTextFill(Color.WHITE);
+
 
         loadingTextTimeline = new Timeline(
                 new KeyFrame(Duration.ZERO, e -> loadingLabel.setText("Ładowanie gry")),
@@ -166,7 +273,6 @@ public class TeamSelectionFrame {
         );
         loadingTextTimeline.setCycleCount(Timeline.INDEFINITE);
         loadingTextTimeline.play();
-
 
         Label startingLabel = new Label();
         startingLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 30));
@@ -181,13 +287,10 @@ public class TeamSelectionFrame {
         teamLabel.setMinHeight(90);
         teamLabel.setOpacity(0);
 
-        // Usunięto tworzenie i stylowanie progressIndicator
-
         centerPanel.getChildren().addAll(
                 startingLabel,
                 teamLabel,
                 loadingLabel
-                // Usunięto progressIndicator z dodawania do panelu
         );
         mainPane.setCenter(centerPanel);
 
@@ -200,6 +303,7 @@ public class TeamSelectionFrame {
                         "-fx-padding: 18 35 18 35;" +
                         "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.4), 10, 0.5, 0, 2);"
         );
+
         startGameButton.setOnMouseEntered(e -> startGameButton.setStyle(
                 "-fx-background-color: linear-gradient(from 0% 0% to 100% 100%, #66BB6A, #4CAF50);" +
                         "-fx-background-radius: 30; -fx-padding: 18 35 18 35; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.6), 15, 0.6, 0, 3);"
@@ -210,28 +314,20 @@ public class TeamSelectionFrame {
         ));
         startGameButton.setVisible(false);
         startGameButton.setDisable(true);
-        startGameButton.setOnAction(e -> proceedToGame());
+        startGameButton.setOnAction(e -> {
+
+            proceedToGame();
+        });
         BorderPane.setAlignment(startGameButton, Pos.CENTER);
         BorderPane.setMargin(startGameButton, new Insets(40, 0, 30, 0));
         mainPane.setBottom(startGameButton);
 
         startSelectionAnimation(startingLabel, teamLabel);
+        uiInitialized = true;
 
-        Scene scene = new Scene(mainPane);
-        try {
-            String cssPath = getClass().getResource("/styles.css").toExternalForm();
-            if (cssPath != null) {
-                scene.getStylesheets().add(cssPath);
-            } else {
-                System.err.println("Nie znaleziono pliku stylów: /styles.css");
-            }
-        } catch (Exception e) {
-            System.err.println("Nie można załadować arkusza stylów: " + e.getMessage());
-        }
-        stage.setScene(scene);
     }
 
-    private VBox createTeamInfoPanel(String teamName, List<String> members) {
+    private VBox createTeamInfoPanel(String teamNameText, List<String> membersList) {
         VBox teamPanel = new VBox(12);
         teamPanel.setPadding(new Insets(30));
         teamPanel.setAlignment(Pos.TOP_CENTER);
@@ -247,7 +343,7 @@ public class TeamSelectionFrame {
         teamPanel.setMinWidth(250);
         teamPanel.setMaxWidth(400);
 
-        Label nameLabel = new Label(teamName);
+        Label nameLabel = new Label(teamNameText);
         nameLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 30));
         nameLabel.setTextFill(Color.GOLD);
         nameLabel.setTextAlignment(TextAlignment.CENTER);
@@ -270,9 +366,9 @@ public class TeamSelectionFrame {
         membersListVBox.setAlignment(Pos.CENTER_LEFT);
         membersListVBox.setPadding(new Insets(5, 0, 0, 25));
 
-        if (members != null && !members.isEmpty()) {
+        if (membersList != null && !membersList.isEmpty()) {
             int playerNum = 1;
-            for (String member : members) {
+            for (String member : membersList) {
                 Label memberLabel = new Label(playerNum + ". " + member);
                 memberLabel.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 16));
                 memberLabel.setTextFill(Color.WHITE);
@@ -291,7 +387,6 @@ public class TeamSelectionFrame {
         Region spacer = new Region();
         VBox.setVgrow(spacer, Priority.ALWAYS);
         teamPanel.getChildren().add(spacer);
-
 
         return teamPanel;
     }
@@ -327,6 +422,7 @@ public class TeamSelectionFrame {
             );
         }
 
+
         String selectedTeam = team1Starts ? team1Name : team2Name;
         Duration finalTime = cycleTime.multiply(cycles).add(finalRevealDelay);
         animation.getKeyFrames().add(new KeyFrame(finalTime, e -> {
@@ -338,14 +434,17 @@ public class TeamSelectionFrame {
             startingLabel.setText("Rozpoczyna drużyna:");
             startingLabel.setVisible(true);
 
+
             ScaleTransition st = new ScaleTransition(Duration.millis(300), teamLabel);
             st.setFromX(1.0); st.setFromY(1.0);
             st.setToX(1.15); st.setToY(1.15);
             st.setAutoReverse(true);
             st.setCycleCount(2);
 
+
             FadeTransition ft = new FadeTransition(Duration.millis(200), startingLabel);
             ft.setFromValue(0.0); ft.setToValue(1.0);
+
 
             Glow glow = new Glow(0.0);
             teamLabel.setEffect(glow);
@@ -361,8 +460,8 @@ public class TeamSelectionFrame {
         }));
 
         animation.setOnFinished(event -> {
-            System.out.println("Animacja wyboru drużyny zakończona.");
-            Timeline resetEffect = new Timeline(new KeyFrame(Duration.millis(100), e -> teamLabel.setEffect(new DropShadow(15, Color.BLACK))));
+
+            Timeline resetEffect = new Timeline(new KeyFrame(Duration.millis(100), ef -> teamLabel.setEffect(new DropShadow(15, Color.BLACK))));
             resetEffect.play();
         });
 
@@ -370,33 +469,58 @@ public class TeamSelectionFrame {
     }
 
     private void proceedToGame() {
+
+        if (gameService != null) {
+
+        } else {
+
+        }
+
         if (loadingComplete && gameService != null && gameService.getCurrentQuestion() != null) {
-            FadeTransition fadeOut = new FadeTransition(Duration.millis(400), stage.getScene().getRoot());
+
+            FadeTransition fadeOut = new FadeTransition(Duration.millis(300), mainPane);
             fadeOut.setFromValue(1.0);
             fadeOut.setToValue(0.0);
             fadeOut.setOnFinished(e -> {
-                stage.close();
-                GameFrame gameFrame = new GameFrame(selectedCategory, answerTime, team1Name, team2Name, team1Starts, this.team1Members, this.team2Members);
-                gameFrame.show();
+
+                GameFrame gameScreen = new GameFrame(
+                        selectedCategory,
+                        answerTime,
+                        team1Name,
+                        team2Name,
+                        team1Starts,
+                        this.team1Members,
+                        this.team2Members,
+                        this.stage,
+                        this.gameService
+                );
+                Parent gameRoot = gameScreen.getRootPane();
+                stage.getScene().setRoot(gameRoot);
+                gameScreen.initializeGameContent();
+
+                FadeTransition fadeIn = new FadeTransition(Duration.millis(300), gameRoot);
+                fadeIn.setFromValue(0.0);
+                fadeIn.setToValue(1.0);
+                fadeIn.play();
             });
             fadeOut.play();
 
         } else {
             Alert alert = new Alert(AlertType.WARNING);
-            alert.setTitle("Proszę czekać");
-            alert.setHeaderText("Gra nie jest jeszcze gotowa.");
-            alert.setContentText("Ładowanie danych gry nie zostało ukończone.");
-            alert.showAndWait();
-        }
-    }
+            alert.setTitle("Błąd ładowania gry");
+            alert.setHeaderText("Gra nie jest jeszcze gotowa lub wystąpił błąd.");
+            alert.setContentText("Nie udało się załadować danych gry. Sprawdź konsolę lub spróbuj ponownie.");
+            try {
+                DialogPane dialogPane = alert.getDialogPane();
+                String cssPath = getClass().getResource("/styles.css").toExternalForm();
+                if (cssPath != null && !dialogPane.getStylesheets().contains(cssPath)) {
+                    dialogPane.getStylesheets().add(cssPath);
+                    dialogPane.getStyleClass().add("custom-alert");
+                }
+            } catch (Exception ex) {
 
-    public void show() {
-        stage.show();
-        if (stage.getScene() != null && stage.getScene().getRoot() != null) {
-            FadeTransition ft = new FadeTransition(Duration.millis(500), stage.getScene().getRoot());
-            ft.setFromValue(0);
-            ft.setToValue(1);
-            ft.play();
+            }
+            alert.showAndWait();
         }
     }
 }

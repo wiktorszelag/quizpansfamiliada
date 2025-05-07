@@ -9,7 +9,7 @@ import javafx.scene.paint.CycleMethod;
 import javafx.scene.paint.LinearGradient;
 import javafx.scene.paint.Stop;
 import javafx.scene.text.Font;
-import javafx.scene.text.FontWeight;  // Ten import został dodany
+import javafx.scene.text.FontWeight;
 
 public class SettingsPanel extends VBox {
     public SettingsPanel(ComboBox<Integer> teamSizeComboBox,
@@ -33,7 +33,6 @@ public class SettingsPanel extends VBox {
     private void initializeComponents(ComboBox<Integer> teamSizeComboBox,
                                       ComboBox<String> categoryComboBox,
                                       Spinner<Integer> answerTimeSpinner) {
-        // Stylowanie kontrolek
         teamSizeComboBox.setStyle("-fx-font-size: 16px; -fx-background-radius: 10;");
         categoryComboBox.setStyle("-fx-font-size: 16px; -fx-background-radius: 10;");
         answerTimeSpinner.setStyle("-fx-font-size: 16px; -fx-background-radius: 10;");
