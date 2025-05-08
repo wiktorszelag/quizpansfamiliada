@@ -182,11 +182,7 @@ public class TeamSetupFrame {
         mainPanel.getChildren().clear();
         mainPanel.setPadding(new Insets(30));
         mainPanel.setAlignment(Pos.TOP_CENTER);
-        // --- USUNIĘTO/ZAKOMENTOWANO LINIĘ PONIŻEJ ---
-        // mainPanel.setStyle("-fx-background-color: transparent;");
-        // --------------------------------------------
-        // Można ewentualnie ustawić tło mainPanel na gradient, jeśli scena go nie zapewnia
-        // mainPanel.setBackground(new Background(new BackgroundFill(createBackgroundGradient(), CornerRadii.EMPTY, Insets.EMPTY)));
+
         mainPanel.setMinHeight(Region.USE_PREF_SIZE);
 
 
@@ -200,7 +196,7 @@ public class TeamSetupFrame {
         teamDisplayArea.setAlignment(Pos.TOP_CENTER);
         VBox.setVgrow(teamDisplayArea, Priority.ALWAYS);
 
-        // Listenery dla nazw drużyn są w commonSetup
+
 
         VBox team1Panel = createTeamPanel("Drużyna 1", team1Field, team1MembersPanel);
         VBox team2Panel = createTeamPanel("Drużyna 2", team2Field, team2MembersPanel);

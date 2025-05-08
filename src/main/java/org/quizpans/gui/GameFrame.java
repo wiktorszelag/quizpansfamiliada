@@ -30,6 +30,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.Map;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 
 public class GameFrame {
     private Stage stage;
@@ -78,6 +81,11 @@ public class GameFrame {
     private final int MAX_ROUNDS = 6;
     private boolean timerWasRunningBeforeAlert = false;
     private int roundPoints = 0;
+    private Set<String> revealedAnswerBaseFormsInRound = new HashSet<>();
+
+    private Map<String, List<Integer>> playerCorrectAnswersPerRound = new LinkedHashMap<>();
+    private Set<String> allPlayerNamesForStats = new LinkedHashSet<>();
+
 
     private static final String HIDDEN_ANSWER_PLACEHOLDER = "■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■";
 
@@ -89,27 +97,29 @@ public class GameFrame {
         this.isTeam1Turn = isTeam1Turn;
         this.team1Name = team1Name;
         this.team2Name = team2Name;
-        this.team1Members = (team1Members != null && !team1Members.isEmpty()) ? new ArrayList<>(team1Members) : Collections.singletonList("Gracz 1 (D1)");
-        this.team2Members = (team2Members != null && !team2Members.isEmpty()) ? new ArrayList<>(team2Members) : Collections.singletonList("Gracz 1 (D2)");
+        this.team1Members = (team1Members != null && !team1Members.isEmpty()) ? new ArrayList<>(team1Members) : Collections.singletonList(team1Name);
+        this.team2Members = (team2Members != null && !team2Members.isEmpty()) ? new ArrayList<>(team2Members) : Collections.singletonList(team2Name);
         this.gameService = existingGameService;
 
-        this.team1Label = createTeamLabel(team1Name);
-        this.team2Label = createTeamLabel(team2Name);
+        this.team1Label = createTeamLabel(this.team1Name);
+        this.team2Label = createTeamLabel(this.team2Name);
         this.team1TotalLabel = createTotalScoreLabel();
         this.team2TotalLabel = createTotalScoreLabel();
         this.team1ErrorsPanel = createErrorsPanel(true);
         this.team2ErrorsPanel = createErrorsPanel(false);
 
         if (this.gameService == null) {
-            this.gameService = new GameService(selectedCategory);
             try {
+                this.gameService = new GameService(selectedCategory);
                 this.gameService.loadQuestion();
             } catch (RuntimeException e) {
+                showCriticalError("Nie udało się załadować danych gry przy inicjalizacji: " + e.getMessage());
             }
         } else if (this.gameService.getCurrentQuestion() == null) {
             try {
                 this.gameService.loadQuestion();
             } catch (RuntimeException e) {
+                showCriticalError("Nie udało się załadować danych gry przy ponownym ładowaniu: " + e.getMessage());
             }
         }
     }
@@ -117,7 +127,6 @@ public class GameFrame {
     public void initializeGameContent() {
         if (!uiInitialized) {
             initUI();
-            uiInitialized = true;
         }
         setFrameProperties();
         applyStylesheets();
@@ -126,42 +135,50 @@ public class GameFrame {
         updateCurrentPlayerLabel();
 
         if (gameService != null && gameService.getCurrentQuestion() != null) {
-            if (!usedQuestions.contains(TextNormalizer.normalizeToBaseForm(gameService.getCurrentQuestion()))) {
-                usedQuestions.add(TextNormalizer.normalizeToBaseForm(gameService.getCurrentQuestion()));
+            String normalizedQuestion = TextNormalizer.normalizeToBaseForm(gameService.getCurrentQuestion());
+            if (!usedQuestions.contains(normalizedQuestion)) {
+                usedQuestions.add(normalizedQuestion);
+            } else {
+                System.out.println("Ostrzeżenie: Pytanie '" + gameService.getCurrentQuestion().substring(0, Math.min(30, gameService.getCurrentQuestion().length())) + "...' zostało już użyte.");
             }
             prepareNewRoundVisuals();
             startTimer();
         } else {
-            showCriticalError("Nie udało się załadować danych gry (pytanie początkowe). Gra nie może być kontynuowana.");
+            if (uiInitialized) {
+                showCriticalError("Nie udało się załadować danych gry (pytanie początkowe). Gra nie może być kontynuowana.");
+            }
         }
     }
 
+
     private void setFrameProperties() {
-        stage.setTitle("Familiada - Nowoczesna Wersja");
+        stage.setTitle("QuizPans");
         try {
             InputStream logoStream = getClass().getResourceAsStream("/logo.png");
             if (logoStream != null) {
-                stage.getIcons().add(new Image(logoStream));
+                if (stage.getIcons().isEmpty()) {
+                    stage.getIcons().add(new Image(logoStream));
+                }
                 logoStream.close();
             }
-        } catch (Exception e) {  }
+        } catch (Exception e) { System.err.println("Błąd ładowania ikony aplikacji: " + e.getMessage()); }
     }
 
     private void applyStylesheets() {
-        if (mainPane != null && mainPane.getScene() != null) {
+        Scene scene = stage.getScene();
+        if (scene != null) {
             try {
                 String cssPath = getClass().getResource("/styles.css").toExternalForm();
-                if (!mainPane.getScene().getStylesheets().contains(cssPath)) {
-                    mainPane.getScene().getStylesheets().add(cssPath);
+                if (cssPath != null && !scene.getStylesheets().contains(cssPath)) {
+                    scene.getStylesheets().add(cssPath);
                 }
-            } catch (Exception e) { }
+            } catch (Exception e) { System.err.println("Błąd ładowania arkusza stylów: " + e.getMessage());}
         }
     }
 
     public Parent getRootPane() {
         if (mainPane == null) {
             initUI();
-            uiInitialized = true;
         }
         return mainPane;
     }
@@ -216,6 +233,7 @@ public class GameFrame {
         HBox.setHgrow(team1Box, Priority.ALWAYS); HBox.setHgrow(answerField, Priority.NEVER); HBox.setHgrow(team2Box, Priority.ALWAYS);
         bottomContainer.getChildren().addAll(currentPlayerLabel, inputAndScoresBox);
         mainPane.setBottom(bottomContainer);
+        uiInitialized = true;
     }
 
     private VBox createErrorsPanel(boolean isLeftPanel) {
@@ -279,14 +297,27 @@ public class GameFrame {
 
     private void updateCurrentPlayerLabel() {
         if (currentPlayerLabel == null) { return; }
-        String currentPlayerNameText;
-        if (isTeam1Turn) {
-            currentPlayerNameText = team1Members.isEmpty() ? team1Name : team1Members.get(team1PlayerIndex);
+        String currentPlayerNameText = getCurrentPlayerNameForStats();
+        if (currentPlayerNameText != null) {
+            currentPlayerLabel.setText("Odpowiada teraz: " + currentPlayerNameText);
         } else {
-            currentPlayerNameText = team2Members.isEmpty() ? team2Name : team2Members.get(team2PlayerIndex);
+            currentPlayerLabel.setText("Odpowiada teraz: ...");
         }
-        currentPlayerLabel.setText("Odpowiada teraz: " + currentPlayerNameText);
     }
+
+    private String getCurrentPlayerNameForStats() {
+        try {
+            if (isTeam1Turn) {
+                return team1Members.isEmpty() || team1PlayerIndex < 0 || team1PlayerIndex >= team1Members.size() ? team1Name : team1Members.get(team1PlayerIndex);
+            } else {
+                return team2Members.isEmpty() || team2PlayerIndex < 0 || team2PlayerIndex >= team2Members.size() ? team2Name : team2Members.get(team2PlayerIndex);
+            }
+        } catch (IndexOutOfBoundsException e) {
+            System.err.println("Błąd indeksu przy pobieraniu nazwy gracza: T1 idx=" + team1PlayerIndex + ", T2 idx=" + team2PlayerIndex);
+            return isTeam1Turn ? team1Name : team2Name;
+        }
+    }
+
 
     private void setInitialPlayerIndexForRound() {
         int baseIndex = currentRoundNumber - 1;
@@ -402,6 +433,17 @@ public class GameFrame {
             return;
         }
 
+        String currentPlayerName = getCurrentPlayerNameForStats();
+        if (currentPlayerName != null) {
+            allPlayerNamesForStats.add(currentPlayerName);
+            playerCorrectAnswersPerRound.putIfAbsent(currentPlayerName, new ArrayList<>());
+            List<Integer> scores = playerCorrectAnswersPerRound.get(currentPlayerName);
+            while (scores.size() < currentRoundNumber) {
+                scores.add(0);
+            }
+            scores.set(currentRoundNumber - 1, scores.get(currentRoundNumber - 1) + 1);
+        }
+
         boolean wasStealing = stealOpportunity;
         stealOpportunity = false;
 
@@ -412,6 +454,7 @@ public class GameFrame {
 
         if (wasStealing) {
             if (isTeam1Turn) team1Score += roundPoints; else team2Score += roundPoints;
+            updateTeamLabels();
             showInfo("Przejęcie udane! Punkty (" + roundPoints + ") dla drużyny " + getCurrentTeamName() + "!", false);
             advancePlayerInCurrentTeam();
             endRound(false);
@@ -424,28 +467,28 @@ public class GameFrame {
             firstTeamAnswerPosition = position;
 
             if (position != 0) {
-                showInfo("Dobra odpowiedź! Ale czy najlepsza? Szansa dla drużyny " + getOpponentTeamName() + "!");
+                showInfo("Dobra odpowiedź! Ale czy najlepsza? Szansa dla drużyny " + getOpponentTeamName() + "!", false);
                 advancePlayerInCurrentTeam();
                 switchTeam();
             } else {
                 hasControl = true;
                 resetErrorsAndPanels();
-                showInfo("Najlepsza odpowiedź! Drużyna " + getCurrentTeamName() + " ma kontrolę!");
+                showInfo("Najlepsza odpowiedź! Drużyna " + getCurrentTeamName() + " ma kontrolę!", false);
                 continueTurnForCurrentTeam();
             }
         } else if (!hasControl) {
             if (firstTeamAnswerPosition == -1) {
                 hasControl = true; resetErrorsAndPanels();
-                showInfo("Poprawna odpowiedź! Drużyna " + getCurrentTeamName() + " przejmuje kontrolę (fallback)!");
+                showInfo("Poprawna odpowiedź! Drużyna " + getCurrentTeamName() + " przejmuje kontrolę (fallback)!", false);
                 continueTurnForCurrentTeam();
             } else {
                 if (position < firstTeamAnswerPosition) {
                     hasControl = true;
                     resetErrorsAndPanels();
-                    showInfo("Świetna odpowiedź! Drużyna " + getCurrentTeamName() + " przejmuje kontrolę!");
+                    showInfo("Świetna odpowiedź! Drużyna " + getCurrentTeamName() + " przejmuje kontrolę!", false);
                     continueTurnForCurrentTeam();
                 } else {
-                    showInfo("Poprawna odpowiedź, ale nie lepsza niż drużyny " + getOpponentTeamName() + ". Kontrola dla " + getOpponentTeamName() + ".");
+                    showInfo("Poprawna odpowiedź, ale nie lepsza niż drużyny " + getOpponentTeamName() + ". Kontrola dla " + getOpponentTeamName() + ".", false);
                     advancePlayerInCurrentTeam();
                     isTeam1Turn = !isTeam1Turn;
                     hasControl = true;
@@ -456,7 +499,9 @@ public class GameFrame {
                 }
             }
         } else {
-            if (revealedAnswers == gameService.getTotalAnswersCount() || revealedAnswers == answerPanes.length) {
+            if (revealedAnswers == gameService.getTotalAnswersCount() || revealedAnswers >= answerPanes.length) {
+                if (isTeam1Turn) team1Score += roundPoints; else team2Score += roundPoints;
+                updateTeamLabels();
                 showInfo("Wszystkie odpowiedzi odkryte! Runda dla drużyny " + getCurrentTeamName() + "!", false);
                 advancePlayerInCurrentTeam();
                 endRound(true);
@@ -475,6 +520,7 @@ public class GameFrame {
         if (gameService == null || position < 0 || position >= answerPanes.length || answerPanes[position] == null) {
             return;
         }
+        revealedAnswerBaseFormsInRound.add(answerBaseForm);
         String originalAnswer = gameService.getOriginalAnswer(answerBaseForm); String answerToDisplay = capitalizeFirstLetter(originalAnswer);
         BorderPane pane = answerPanes[position]; pane.getStyleClass().add("answer-revealed");
         Label answerTextLabel = new Label((position + 1) + ". " + answerToDisplay);
@@ -510,8 +556,6 @@ public class GameFrame {
         if ((hadControlBeforeError || isStealing) && panelToUpdate != null) {
             updateErrorsPanel(panelToUpdate, currentTeamErrors);
         }
-
-
 
         if (isStealing) {
             showInfo("Błędna odpowiedź przy próbie przejęcia! Punkty ("+ roundPoints +") wędrują do drużyny " + getOpponentTeamName() + "!", false);
@@ -643,62 +687,102 @@ public class GameFrame {
             if (timer != null) timer.stop();
             timerWasRunningBeforeAlert = false;
 
-            if (pointsAwardedToCurrentTeamItself) {
-                if (isTeam1Turn) team1Score += roundPoints; else team2Score += roundPoints;
-            }
             updateTeamLabels();
             Platform.runLater(this::showEndOfRoundDialog);
         }
     }
 
     private void showEndOfRoundDialog() {
-        Alert alert = new Alert(AlertType.INFORMATION);
-        alert.setTitle("Koniec rundy " + currentRoundNumber + "!");
-        alert.setHeaderText("Runda " + currentRoundNumber + " zakończona! Aktualny wynik:");
-
-        boolean noMoreQuestionsAvailable = (gameService == null);
-        if (gameService != null && gameService instanceof org.quizpans.services.GameService) {
-        }
-
         boolean maxRoundsReached = (currentRoundNumber >= MAX_ROUNDS);
-        boolean gameCanContinue = !maxRoundsReached && !noMoreQuestionsAvailable;
-
-        String roundEndMessage;
-        if (maxRoundsReached) {
-            roundEndMessage = "Osiągnięto maksymalną liczbę rund. Koniec gry!";
-        } else if (noMoreQuestionsAvailable && gameService != null) {
-            roundEndMessage = "Brak więcej unikalnych pytań. Koniec gry.";
-        } else {
-            roundEndMessage = "Trwa ładowanie kolejnego pytania...";
-        }
-
-        Label content = new Label(team1Name + ": " + team1Score + " pkt\n" +
-                team2Name + ": " + team2Score + " pkt\n\n" +
-                roundEndMessage);
-        content.setFont(Font.font("Arial", 20)); content.setWrapText(true);
-
-        loadingIndicator = new ProgressIndicator(); loadingIndicator.setStyle("-fx-progress-color: gold;");
-        loadingIndicator.setPrefSize(50, 50); loadingIndicator.setVisible(gameCanContinue);
-
-        VBox alertContent = new VBox(20, content, loadingIndicator); alertContent.setAlignment(Pos.CENTER); alertContent.setPadding(new Insets(20));
-        DialogPane dialogPane = alert.getDialogPane();
-        try {
-            String cssPath = getClass().getResource("/styles.css").toExternalForm();
-            if (cssPath != null && !dialogPane.getStylesheets().contains(cssPath)) { dialogPane.getStylesheets().add(cssPath); dialogPane.getStyleClass().add("custom-alert"); }
-        } catch (Exception e) {  }
-        dialogPane.setContent(alertContent); dialogPane.setPrefSize(500, 300);
+        boolean gameCanContinue = !maxRoundsReached;
 
         if (gameCanContinue) {
-            new Thread(() -> {
-                Platform.runLater(() -> {
-                    alert.close();
-                    prepareNewRound();
-                });
-            }).start();
+            Set<String> revealedCopy = new HashSet<>(this.revealedAnswerBaseFormsInRound);
+            Map<String, List<Integer>> statsCopy = new LinkedHashMap<>();
+            for(Map.Entry<String, List<Integer>> entry : playerCorrectAnswersPerRound.entrySet()){
+                statsCopy.put(entry.getKey(), new ArrayList<>(entry.getValue()));
+            }
+
+            NextRoundFrame nextRoundScreen = new NextRoundFrame(
+                    this.stage,
+                    () -> {
+                        this.prepareNewRound();
+                        if (!gameFinished && this.mainPane != null && this.stage.getScene() != null) {
+                            Parent gameRootPane = this.getRootPane();
+                            this.stage.getScene().setRoot(gameRootPane);
+                            if (this.gameService != null && this.gameService.getCurrentQuestion() != null) {
+                            }
+                            FadeTransition fadeInGame = new FadeTransition(Duration.millis(300), gameRootPane);
+                            fadeInGame.setFromValue(0.0);
+                            fadeInGame.setToValue(1.0);
+                            fadeInGame.play();
+                        } else if (!gameFinished){
+                            showCriticalError("Nie można wrócić do ekranu gry.");
+                        }
+                    },
+                    this.gameService,
+                    revealedCopy,
+                    statsCopy,
+                    this.currentRoundNumber,
+                    this.team1Name,
+                    this.team2Name,
+                    new ArrayList<>(this.team1Members),
+                    new ArrayList<>(this.team2Members),
+                    this.team1Score,
+                    this.team2Score
+            );
+            nextRoundScreen.show();
         } else {
-            alert.setOnCloseRequest(e -> Platform.runLater(this::showGameEndDialog));
+            Alert alert = new Alert(AlertType.INFORMATION);
+            alert.setTitle("Koniec Gry!");
+
+            String roundEndMessage;
+            int roundsPlayedToEnd = Math.min(currentRoundNumber, MAX_ROUNDS);
+            if (maxRoundsReached) {
+                roundEndMessage = "Osiągnięto maksymalną liczbę rund (" + MAX_ROUNDS + "). Koniec gry!";
+                alert.setHeaderText("Koniec gry po " + roundsPlayedToEnd + " rundach!");
+            } else {
+                roundEndMessage = "Brak dostępnych pytań w tej kategorii. Koniec gry!";
+                alert.setHeaderText("Koniec gry po " + roundsPlayedToEnd + " rundach!");
+                if (roundsPlayedToEnd == 0) {
+                    roundEndMessage = "Brak pytań w wybranej kategorii. Nie można rozpocząć gry.";
+                    alert.setHeaderText("Błąd Startu Gry");
+                }
+            }
+
+            Label content = new Label(team1Name + ": " + team1Score + " pkt\n" +
+                    team2Name + ": " + team2Score + " pkt\n\n" +
+                    roundEndMessage);
+            content.setFont(Font.font("Arial", 20)); content.setWrapText(true);
+
+            VBox alertContent = new VBox(20, content);
+            alertContent.setAlignment(Pos.CENTER);
+            alertContent.setPadding(new Insets(20));
+
+            DialogPane dialogPane = alert.getDialogPane();
+            try {
+                String cssPath = getClass().getResource("/styles.css").toExternalForm();
+                if (cssPath != null && !dialogPane.getStylesheets().contains(cssPath)) {
+                    dialogPane.getStylesheets().add(cssPath);
+                    dialogPane.getStyleClass().add("custom-alert");
+                }
+            } catch (Exception e) { System.err.println("Błąd ładowania CSS dla alertu: " + e.getMessage()); }
+            dialogPane.setContent(alertContent);
+            dialogPane.setPrefSize(500, 300);
+
+            ButtonType closeButton = new ButtonType("Zamknij grę", ButtonBar.ButtonData.CANCEL_CLOSE);
+            ButtonType newGameButton = new ButtonType("Nowa gra (Ustawienia)", ButtonBar.ButtonData.YES);
+            alert.getButtonTypes().setAll(newGameButton, closeButton);
+
+            alert.setOnCloseRequest(e -> Platform.runLater(Platform::exit));
+
+            Optional<ButtonType> result = alert.showAndWait();
+            if (result.isPresent() && result.get() == newGameButton) {
+                returnToSetupScreen();
+            } else {
+                Platform.exit();
+            }
         }
-        alert.showAndWait();
     }
 
     private void awardPointsToOpponent() {
@@ -708,48 +792,70 @@ public class GameFrame {
 
     private boolean loadNewQuestionForRound() {
         if (gameService == null) {
-            gameService = new GameService(selectedCategory);
+            try {
+                gameService = new GameService(selectedCategory);
+            } catch (Exception e) {
+                if(!gameFinished) showCriticalError("Krytyczny błąd: Nie można utworzyć serwisu gry przy ładowaniu nowego pytania.");
+                return false;
+            }
         }
 
-        GameService tempGameService = this.gameService;
         int attempts = 0; final int MAX_ATTEMPTS_LOAD = 10; String newQuestion = null;
         boolean questionLoadedSuccessfully = false;
 
         do {
             try {
-                tempGameService.loadQuestion();
-                newQuestion = tempGameService.getCurrentQuestion();
+                gameService.loadQuestion();
+                newQuestion = gameService.getCurrentQuestion();
             } catch (RuntimeException e) {
                 newQuestion = null;
-                break;
+                System.err.println("Próba " + (attempts + 1) + " ładowania pytania nie powiodła się: " + e.getMessage());
+                if (attempts >= MAX_ATTEMPTS_LOAD - 1) {
+                    gameService.setCurrentQuestionToNull();
+                    if(!gameFinished) showCriticalError("Nie udało się załadować nowego pytania po " + MAX_ATTEMPTS_LOAD + " próbach: " + e.getMessage());
+                    return false;
+                }
             }
             attempts++;
 
             if (newQuestion == null) {
-                if(attempts >= MAX_ATTEMPTS_LOAD) break;
+                if (attempts >= MAX_ATTEMPTS_LOAD) {
+                    gameService.setCurrentQuestionToNull();
+                    if(!gameFinished) showCriticalError("Nie udało się załadować nowego pytania: brak pytań po " + MAX_ATTEMPTS_LOAD + " próbach.");
+                    break;
+                }
                 try { Thread.sleep(100); } catch (InterruptedException ignored) { Thread.currentThread().interrupt(); }
                 continue;
             }
 
             String normalizedNewQuestion = TextNormalizer.normalizeToBaseForm(newQuestion);
             if (!usedQuestions.contains(normalizedNewQuestion)) {
-                usedQuestions.add(normalizedNewQuestion);
                 questionLoadedSuccessfully = true;
                 return true;
+            } else {
+                System.out.println("Pytanie '" + newQuestion.substring(0, Math.min(30, newQuestion.length())) +"...' już użyte, próba kolejna...");
             }
         } while (attempts < MAX_ATTEMPTS_LOAD);
 
         if (!questionLoadedSuccessfully) {
-            if (this.gameService != null) this.gameService.setCurrentQuestionToNull();
-            return false;
+            gameService.setCurrentQuestionToNull();
+            if(!gameFinished) showCriticalError("Nie udało się znaleźć unikalnego pytania po " + MAX_ATTEMPTS_LOAD + " próbach.");
         }
-        return false;
+        return questionLoadedSuccessfully;
     }
+
 
     private void returnToSetupScreen() {
         if (timer != null) timer.stop();
         gameFinished = true;
         if(answerField != null) answerField.setDisable(true);
+
+        playerCorrectAnswersPerRound.clear();
+        allPlayerNamesForStats.clear();
+        usedQuestions.clear();
+        currentRoundNumber = 1;
+        team1Score = 0;
+        team2Score = 0;
 
         TeamSetupFrame setupFrame = new TeamSetupFrame(stage);
         Parent setupRoot = setupFrame.getRootPane();
@@ -770,8 +876,8 @@ public class GameFrame {
             Scene newScene = new Scene(setupRoot);
             try {
                 String cssPath = getClass().getResource("/styles.css").toExternalForm();
-                newScene.getStylesheets().add(cssPath);
-            } catch (Exception e) {}
+                if (cssPath != null) newScene.getStylesheets().add(cssPath);
+            } catch (Exception e) {System.err.println("Błąd ładowania CSS dla TeamSetupFrame: " + e.getMessage());}
             stage.setScene(newScene);
             stage.show();
             FadeTransition fadeIn = new FadeTransition(Duration.millis(300), setupRoot);
@@ -808,15 +914,21 @@ public class GameFrame {
     }
 
     private void prepareNewRound() {
+        revealedAnswerBaseFormsInRound.clear();
+
         if (currentRoundNumber >= MAX_ROUNDS) {
-            if (!gameFinished) showGameEndDialog();
+            if (!gameFinished) {
+                Platform.runLater(this::showGameEndDialog);
+            }
             return;
         }
 
         boolean newQuestionLoaded = loadNewQuestionForRound();
 
         if (!newQuestionLoaded) {
-            if (!gameFinished) showGameEndDialog();
+            if (!gameFinished) {
+                Platform.runLater(this::showGameEndDialog);
+            }
             return;
         }
 
@@ -838,6 +950,11 @@ public class GameFrame {
         updateTeamLabels();
         updateCurrentPlayerLabel();
 
+        if (gameService != null && gameService.getCurrentQuestion() != null) {
+            String normalizedQuestion = TextNormalizer.normalizeToBaseForm(gameService.getCurrentQuestion());
+            usedQuestions.add(normalizedQuestion);
+        }
+
         prepareNewRoundVisuals();
 
         if(answerField != null) {
@@ -849,9 +966,6 @@ public class GameFrame {
     }
 
     private void showGameEndDialog() {
-        if (gameFinished && currentRoundNumber > MAX_ROUNDS +1) {
-            return;
-        }
         gameFinished = true;
         if(answerField != null) answerField.setDisable(true);
         if (timer != null) timer.stop();
@@ -864,12 +978,9 @@ public class GameFrame {
         else if (team2Score > team1Score) winnerText = "Wygrywa drużyna " + team2Name + "!";
         else winnerText = "Remis!";
 
-        int roundsActuallyPlayed = currentRoundNumber;
-        if ( (gameService == null || gameService.getCurrentQuestion() == null) && currentRoundNumber > 1 && !loadNewQuestionForRound()) {
-            roundsActuallyPlayed = currentRoundNumber -1;
-        }
-        roundsActuallyPlayed = Math.min(roundsActuallyPlayed, MAX_ROUNDS);
-        if (roundsActuallyPlayed == 0 && (team1Score > 0 || team2Score > 0)) roundsActuallyPlayed =1;
+        int roundsActuallyPlayed = Math.min(currentRoundNumber, MAX_ROUNDS);
+        if (roundsActuallyPlayed == 0 && (team1Score > 0 || team2Score > 0)) roundsActuallyPlayed = 1;
+
 
         alert.setHeaderText("Koniec gry po " + roundsActuallyPlayed + " rundach!\n" + winnerText);
         alert.setContentText("Wynik końcowy:\n" + team1Name + ": " + team1Score + " pkt\n" + team2Name + ": " + team2Score + " pkt");
@@ -877,12 +988,14 @@ public class GameFrame {
         try {
             String cssPath = getClass().getResource("/styles.css").toExternalForm();
             if (cssPath != null && !dialogPane.getStylesheets().contains(cssPath)) { dialogPane.getStylesheets().add(cssPath); dialogPane.getStyleClass().add("custom-alert"); }
-        } catch (Exception e) {}
+        } catch (Exception e) { System.err.println("Błąd ładowania CSS dla alertu końcowego: " + e.getMessage());}
         dialogPane.setPrefSize(500, 300);
 
         ButtonType closeButton = new ButtonType("Zamknij grę", ButtonBar.ButtonData.CANCEL_CLOSE);
-        ButtonType newGameButton = new ButtonType("Nowa gra", ButtonBar.ButtonData.YES);
+        ButtonType newGameButton = new ButtonType("Nowa gra (Ustawienia)", ButtonBar.ButtonData.YES);
         alert.getButtonTypes().setAll(newGameButton, closeButton);
+
+        alert.setOnCloseRequest(e -> Platform.runLater(Platform::exit));
 
         Optional<ButtonType> result = alert.showAndWait();
         if (result.isPresent() && result.get() == newGameButton) {
@@ -893,27 +1006,34 @@ public class GameFrame {
     }
 
     private void resetTimer() {
-        if (gameFinished && currentRoundNumber > MAX_ROUNDS) {
+        if (gameFinished) {
             if(timer != null) timer.stop();
             return;
         }
         if (timer != null) timer.stop();
         timeLeft = initialAnswerTime; updateTimerDisplay();
-        if (answerField != null) {
+        if (answerField != null && !gameFinished) {
             answerField.setDisable(false);
             answerField.requestFocus();
+        } else if (answerField != null) {
+            answerField.setDisable(true);
         }
-        timer = new Timeline(new KeyFrame(Duration.seconds(1), e -> {
-            if (gameFinished && currentRoundNumber > MAX_ROUNDS) { if(timer != null) timer.stop(); return; }
-            timeLeft--; updateTimerDisplay();
-            if (timeLeft <= 0) {
-                if(timer != null) timer.stop();
-                if(answerField != null) answerField.setDisable(true);
-                Platform.runLater(this::handleTimeOut);
-            }
-        }));
-        timer.setCycleCount(Timeline.INDEFINITE); timer.play();
-        timerWasRunningBeforeAlert = true;
+
+        if (!gameFinished) {
+            timer = new Timeline(new KeyFrame(Duration.seconds(1), e -> {
+                if (gameFinished) { if(timer != null) timer.stop(); return; }
+                timeLeft--; updateTimerDisplay();
+                if (timeLeft <= 0) {
+                    if(timer != null) timer.stop();
+                    if(answerField != null) answerField.setDisable(true);
+                    Platform.runLater(this::handleTimeOut);
+                }
+            }));
+            timer.setCycleCount(Timeline.INDEFINITE); timer.play();
+            timerWasRunningBeforeAlert = true;
+        } else {
+            timerWasRunningBeforeAlert = false;
+        }
     }
 
     private void switchTeam() {
@@ -936,7 +1056,7 @@ public class GameFrame {
                 message.toLowerCase().contains("przejęcie udane") ||
                 message.toLowerCase().contains("wędrują do drużyny");
 
-        if (gameFinished && !isEndOfRoundOrGameRelated && currentRoundNumber > MAX_ROUNDS) {
+        if (gameFinished && !isEndOfRoundOrGameRelated) {
             return;
         }
 
@@ -951,15 +1071,13 @@ public class GameFrame {
         try {
             String cssPath = getClass().getResource("/styles.css").toExternalForm();
             if (cssPath != null && !dialogPane.getStylesheets().contains(cssPath)) { dialogPane.getStylesheets().add(cssPath); dialogPane.getStyleClass().add("custom-alert"); }
-        } catch (Exception e) {  }
+        } catch (Exception e) { System.err.println("Błąd ładowania CSS dla informacji: " + e.getMessage()); }
 
         alert.showAndWait();
 
-        if (!gameFinished || currentRoundNumber <= MAX_ROUNDS) {
+        if (!gameFinished) {
             if (shouldResetOrContinueTimerAfter) {
-                if (timerWasRunningBeforeAlert && localTimerWasRunning) {
-                    resetTimer();
-                } else if (timerWasRunningBeforeAlert) {
+                if (timerWasRunningBeforeAlert) {
                     resetTimer();
                 }
             }
@@ -973,46 +1091,44 @@ public class GameFrame {
         gameFinished = true;
         if(answerField != null) answerField.setDisable(true);
 
-        Alert alert = new Alert(AlertType.ERROR);
-        alert.setTitle("Błąd krytyczny"); alert.setHeaderText("Wystąpił poważny błąd!");
-        alert.setContentText(message + "\n\nAplikacja może wymagać ponownego uruchomienia lub powrotu do ustawień.");
-        DialogPane dialogPane = alert.getDialogPane();
-        try {
-            String cssPath = getClass().getResource("/styles.css").toExternalForm();
-            if (cssPath != null && !dialogPane.getStylesheets().contains(cssPath)) { dialogPane.getStylesheets().add(cssPath); dialogPane.getStyleClass().add("custom-alert"); }
-        } catch (Exception e) { /* Ignore */ }
+        Platform.runLater(() -> {
+            Alert alert = new Alert(AlertType.ERROR);
+            alert.setTitle("Błąd krytyczny"); alert.setHeaderText("Wystąpił poważny błąd!");
+            alert.setContentText(message + "\n\nAplikacja może wymagać ponownego uruchomienia lub powrotu do ustawień.");
+            DialogPane dialogPane = alert.getDialogPane();
+            try {
+                String cssPath = getClass().getResource("/styles.css").toExternalForm();
+                if (cssPath != null && !dialogPane.getStylesheets().contains(cssPath)) { dialogPane.getStylesheets().add(cssPath); dialogPane.getStyleClass().add("custom-alert"); }
+            } catch (Exception e) { System.err.println("Błąd ładowania CSS dla błędu krytycznego: " + e.getMessage()); }
 
-        ButtonType returnButton = new ButtonType("Wróć do ustawień", ButtonBar.ButtonData.BACK_PREVIOUS);
-        ButtonType closeButton = new ButtonType("Zamknij aplikację", ButtonBar.ButtonData.CANCEL_CLOSE);
-        alert.getButtonTypes().setAll(returnButton, closeButton);
+            ButtonType returnButton = new ButtonType("Wróć do ustawień", ButtonBar.ButtonData.BACK_PREVIOUS);
+            ButtonType closeButton = new ButtonType("Zamknij aplikację", ButtonBar.ButtonData.CANCEL_CLOSE);
+            alert.getButtonTypes().setAll(returnButton, closeButton);
 
-        Runnable actionAfterAlert = () -> {
             Optional<ButtonType> result = alert.showAndWait();
             if (result.isPresent() && result.get() == returnButton) {
                 returnToSetupScreen();
             } else {
                 Platform.exit();
             }
-        };
-
-        if (Platform.isFxApplicationThread()) {
-            actionAfterAlert.run();
-        } else {
-            Platform.runLater(actionAfterAlert);
-        }
+        });
     }
 
     public void show() {
         if (stage != null) {
-            if (mainPane == null) {
+            if (mainPane == null || !uiInitialized) {
                 initializeGameContent();
             }
-            if (stage.getScene() == null) {
-                Scene scene = new Scene(mainPane);
-                stage.setScene(scene);
+
+            Scene currentScene = stage.getScene();
+            if (currentScene == null) {
+                Scene newScene = new Scene(mainPane, stage.getWidth(), stage.getHeight());
+                stage.setScene(newScene);
                 applyStylesheets();
-            } else if (stage.getScene().getRoot() != mainPane) {
-                stage.getScene().setRoot(mainPane);
+            } else if (currentScene.getRoot() != mainPane) {
+                currentScene.setRoot(mainPane);
+                applyStylesheets();
+            } else {
                 applyStylesheets();
             }
 

@@ -61,7 +61,7 @@ public class SplashScreen {
         );
         rootPane.setBackground(new Background(new BackgroundFill(backgroundGradient, CornerRadii.EMPTY, Insets.EMPTY)));
 
-        Label titleLabel = new Label("Quizpans");
+        Label titleLabel = new Label("QuizPans");
         titleLabel.getStyleClass().add("splash-title");
         addPulseAnimation(titleLabel);
 
@@ -198,10 +198,6 @@ public class SplashScreen {
             Parent mainMenuRoot = mainMenuFrame.getRootPane();
 
             scene.setRoot(mainMenuRoot);
-            // Wywołanie mainMenuFrame.show() nie jest już krytyczne dla zmiany sceny,
-            // ale może zawierać inne inicjalizacje lub logikę specyficzną dla MainMenuFrame.
-            // Jeśli mainMenuFrame.show() nie robi niczego poza this.stage.show() (co jest redundantne),
-            // można by je pominąć. Dla bezpieczeństwa zostawiamy, zakładając że show() jest odpowiednio dostosowane.
             mainMenuFrame.show();
 
 

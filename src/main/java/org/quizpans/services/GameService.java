@@ -4,25 +4,29 @@ import org.quizpans.config.DatabaseConfig;
 import org.quizpans.utils.SynonymManager;
 import org.quizpans.utils.TextNormalizer;
 import org.apache.commons.text.similarity.LevenshteinDistance;
+
 import java.sql.*;
 import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 public class GameService {
-    private final Map<String, Integer> answers = new LinkedHashMap<>(); // Przechowuje znormalizowaną odpowiedź i jej pozycję (dla kolejności)
-    private final Map<String, Integer> pointsMap = new HashMap<>(); // Przechowuje znormalizowaną odpowiedź i punkty
-    private final Map<String, String> synonymMap = new HashMap<>(); // Przechowuje znormalizowany synonim i jego mapowanie na znormalizowaną odpowiedź bazową
-    private final Map<String, String> baseFormToOriginalMap = new HashMap<>(); // Przechowuje znormalizowaną odpowiedź i jej oryginalną formę
+    private final Map<String, Integer> answers = new LinkedHashMap<>();
+    private final Map<String, Integer> pointsMap = new HashMap<>();
+    private final Map<String, String> synonymMap = new HashMap<>();
+    private final Map<String, String> baseFormToOriginalMap = new HashMap<>();
     private final String category;
     private String currentQuestion;
 
     public GameService(String category) {
         this.category = category;
-        // System.out.println("GameService: Tworzenie instancji dla kategorii: " + category);
         loadQuestion();
     }
 
     public void loadQuestion() {
-        // System.out.println("GameService: Próba załadowania pytania dla kategorii: " + category);
         answers.clear();
         pointsMap.clear();
         synonymMap.clear();
@@ -30,7 +34,6 @@ public class GameService {
         currentQuestion = null;
 
         String sql = "SELECT * FROM `" + category + "` ORDER BY RAND() LIMIT 1";
-        // System.out.println("GameService: Wykonuję SQL: " + sql);
 
         try (Connection conn = DriverManager.getConnection(DatabaseConfig.getUrl(), DatabaseConfig.getUser(), DatabaseConfig.getPassword());
              Statement stmt = conn.createStatement();
@@ -38,52 +41,41 @@ public class GameService {
 
             if (rs.next()) {
                 currentQuestion = rs.getString("pytanie");
-                // System.out.println("GameService: Pytanie załadowane: " + currentQuestion.substring(0, Math.min(50, currentQuestion.length())) +"...");
                 loadAnswers(rs);
             } else {
-                // System.err.println("GameService: Brak pytań w bazie danych dla kategorii: " + category);
-                currentQuestion = null; // Upewnij się, że jest null, jeśli nie ma pytań
-                // Rozważ rzucenie dedykowanego wyjątku, np. NoQuestionsFoundException
+                currentQuestion = null;
                 throw new RuntimeException("Brak pytań w bazie danych dla kategorii: " + category);
             }
         } catch (SQLException e) {
-            // System.err.println("GameService: Błąd SQL podczas ładowania pytania dla kategorii '" + category + "': " + e.getMessage());
-            // e.printStackTrace();
-            currentQuestion = null; // Upewnij się, że jest null w przypadku błędu
+            currentQuestion = null;
             throw new RuntimeException("Błąd SQL podczas ładowania pytania: " + e.getMessage(), e);
-        } catch (Exception e) { // Łapanie ogólniejszego wyjątku na wypadek innych problemów
-            // System.err.println("GameService: Inny błąd podczas ładowania pytania dla kategorii '" + category + "': " + e.getMessage());
-            // e.printStackTrace();
+        } catch (Exception e) {
             currentQuestion = null;
             throw new RuntimeException("Inny błąd podczas ładowania pytania: " + e.getMessage(), e);
         }
     }
 
     private void loadAnswers(ResultSet rs) throws SQLException {
-        for (int i = 1; i <= 6; i++) { // Zakładając maksymalnie 6 odpowiedzi
+        for (int i = 1; i <= 6; i++) {
             String answer = rs.getString("odpowiedz" + i);
             if (answer != null && !answer.trim().isEmpty()) {
                 int points = rs.getInt("punkty" + i);
-                String baseForm = TextNormalizer.normalizeToBaseForm(answer); // Normalizuj odpowiedź
-                answers.put(baseForm, 7 - i); // Kluczem jest znormalizowana forma, wartość to np. pozycja
+                String baseForm = TextNormalizer.normalizeToBaseForm(answer);
+                answers.put(baseForm, 7 - i);
                 pointsMap.put(baseForm, points);
-                baseFormToOriginalMap.put(baseForm, answer.trim()); // Przechowaj oryginalną formę
-                loadSynonyms(answer.trim(), baseForm); // Ładuj synonimy dla oryginalnej odpowiedzi, mapuj na baseForm
+                baseFormToOriginalMap.put(baseForm, answer.trim());
+                loadSynonyms(answer.trim(), baseForm);
             }
         }
-        // System.out.println("GameService: Załadowano " + answers.size() + " odpowiedzi.");
     }
 
     private void loadSynonyms(String originalAnswer, String baseForm) {
-        // Upewnij się, że synonimy są ładowane tylko raz dla danej odpowiedzi bazowej
-        if (!synonymMap.containsValue(baseForm)) { // Sprawdzenie, czy dla baseForm już załadowano synonimy
+        if (!synonymMap.containsValue(baseForm)) {
             List<String> synonyms = SynonymManager.findSynonymsFor(originalAnswer);
             synonyms.forEach(syn -> {
                 String processedSyn = TextNormalizer.normalizeToBaseForm(syn);
-                // Dodaj synonim tylko jeśli nie jest taki sam jak forma bazowa odpowiedzi
-                // i jeśli jeszcze nie istnieje jako klucz (aby uniknąć nadpisywania, jeśli różne synonimy normalizują się tak samo)
                 if (!processedSyn.equals(baseForm) && !synonymMap.containsKey(processedSyn)) {
-                    synonymMap.put(processedSyn, baseForm); // Mapuj znormalizowany synonim na znormalizowaną formę bazową
+                    synonymMap.put(processedSyn, baseForm);
                 }
             });
         }
@@ -92,57 +84,37 @@ public class GameService {
     public Optional<String> checkAnswer(String userAnswer) {
         String processedInput = TextNormalizer.normalizeToBaseForm(userAnswer);
 
-        // 1. Bezpośrednie dopasowanie do znormalizowanej odpowiedzi
         if (answers.containsKey(processedInput)) {
             return Optional.of(processedInput);
         }
 
-        // 2. Sprawdzenie synonimów
         if (synonymMap.containsKey(processedInput)) {
-            return Optional.of(synonymMap.get(processedInput)); // Zwróć znormalizowaną formę bazową, na którą mapuje synonim
+            return Optional.of(synonymMap.get(processedInput));
         }
 
-        // 3. Sprawdzenie z odległością Levenshteina (opcjonalne, jeśli powyższe zawiodą)
-        // Iteruj po kluczach (znormalizowanych odpowiedziach) w `answers`
         for (String correctAnswerBaseForm : answers.keySet()) {
             if (isMatchWithLevenshtein(processedInput, correctAnswerBaseForm)) {
                 return Optional.of(correctAnswerBaseForm);
             }
         }
-        // Można też sprawdzić Levenshteina dla synonimów, jeśli to konieczne, ale może to spowolnić
-        // for (String synonymBaseForm : synonymMap.keySet()) {
-        //     if (isMatchWithLevenshtein(processedInput, synonymBaseForm)) {
-        //         return Optional.of(synonymMap.get(synonymBaseForm));
-        //     }
-        // }
-
-
-        return Optional.empty(); // Brak dopasowania
+        return Optional.empty();
     }
 
-    // Oddzielna metoda dla Levenshteina, aby była jasność
     private boolean isMatchWithLevenshtein(String userInput, String correctAnswer) {
-        // Odległość Levenshteina; próg można dostosować
-        // Dla krótkich odpowiedzi próg 1-2 jest zwykle ok. Dla dłuższych można zwiększyć.
-        // Warto też uwzględnić długość stringów przy określaniu progu.
-        int threshold = Math.min(2, correctAnswer.length() / 4); // np. max 2 błędy lub 25% długości słowa
+        int threshold = Math.min(2, correctAnswer.length() / 4);
         return new LevenshteinDistance().apply(userInput, correctAnswer) <= threshold;
     }
 
-
     public int getAnswerPosition(String answerBaseForm) {
-        // Odpowiedź powinna być już znormalizowaną formą bazową
-        return 6 - answers.getOrDefault(answerBaseForm, 6); // Jeśli nie ma, zwróć domyślną pozycję (lub obsłuż błąd)
+        return 6 - answers.getOrDefault(answerBaseForm, 6);
     }
 
     public int getPoints(String answerBaseForm) {
-        // Odpowiedź powinna być już znormalizowaną formą bazową
         return pointsMap.getOrDefault(answerBaseForm, 0);
     }
 
     public String getOriginalAnswer(String baseForm) {
-        // Zwraca oryginalną, nieprzetworzoną odpowiedź na podstawie formy bazowej
-        return baseFormToOriginalMap.getOrDefault(baseForm, baseForm); // Jeśli nie ma, zwróć samą formę bazową
+        return baseFormToOriginalMap.getOrDefault(baseForm, baseForm);
     }
 
     public String getCurrentQuestion() {
@@ -157,12 +129,49 @@ public class GameService {
         return answers.size();
     }
 
-    public void setCurrentQuestionToNull() { // Używane np. przy błędzie ładowania, aby "zresetować" stan
-        // System.out.println("GameService: Ustawiam currentQuestion na null i czyszczę odpowiedzi.");
+    public void setCurrentQuestionToNull() {
         this.currentQuestion = null;
         this.answers.clear();
         this.pointsMap.clear();
         this.synonymMap.clear();
         this.baseFormToOriginalMap.clear();
+    }
+
+    public static class AnswerData {
+        public final String baseForm;
+        public final String originalText;
+        public final int points;
+        public final int displayOrderIndex;
+
+        public AnswerData(String baseForm, String originalText, int points, int displayOrderIndex) {
+            this.baseForm = baseForm;
+            this.originalText = originalText;
+            this.points = points;
+            this.displayOrderIndex = displayOrderIndex;
+        }
+
+        public String getBaseForm() { return baseForm; }
+        public String getOriginalText() { return originalText; }
+        public int getPoints() { return points; }
+        public int getDisplayOrderIndex() { return displayOrderIndex; }
+    }
+
+    public List<AnswerData> getAllAnswersForCurrentQuestion() {
+        List<AnswerData> allAnswersData = new ArrayList<>();
+        if (answers.isEmpty()) {
+            return allAnswersData;
+        }
+
+        List<Map.Entry<String, Integer>> sortedEntries = new ArrayList<>(answers.entrySet());
+        sortedEntries.sort(Map.Entry.comparingByValue(Comparator.reverseOrder()));
+
+        int displayIndex = 0;
+        for (Map.Entry<String, Integer> entry : sortedEntries) {
+            String baseForm = entry.getKey();
+            String originalText = baseFormToOriginalMap.getOrDefault(baseForm, "Brak tekstu");
+            int points = pointsMap.getOrDefault(baseForm, 0);
+            allAnswersData.add(new AnswerData(baseForm, originalText, points, displayIndex++));
+        }
+        return allAnswersData;
     }
 }

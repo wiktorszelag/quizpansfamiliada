@@ -123,7 +123,7 @@ public class TeamSelectionFrame {
 
 
     private void setFrameProperties() {
-        stage.setTitle("Familiada - Losowanie i Ładowanie Gry");
+        stage.setTitle("QuizPans - Losowanie i Ładowanie Gry");
         setApplicationIcon();
     }
 

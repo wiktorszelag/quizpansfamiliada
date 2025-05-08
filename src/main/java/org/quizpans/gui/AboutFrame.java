@@ -48,7 +48,7 @@ public class AboutFrame {
         aboutLabel.setTextFill(Color.WHITE);
         aboutLabel.setEffect(new DropShadow(10, Color.BLACK));
 
-        Label infoPlaceholder = new Label("Wersja 1.0\nCopyright © 2025");
+        Label infoPlaceholder = new Label("cos tu dodam kiedys");
         infoPlaceholder.setFont(Font.font("System", 16));
         infoPlaceholder.setTextFill(Color.LIGHTGRAY);
         infoPlaceholder.setAlignment(Pos.CENTER);
