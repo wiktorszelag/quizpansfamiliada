@@ -2,6 +2,7 @@ package org.quizpans.gui;
 
 import javafx.animation.FadeTransition;
 import javafx.application.Platform;
+import javafx.collections.FXCollections; // Dodaj ten import
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.geometry.Rectangle2D;
@@ -20,10 +21,12 @@ import javafx.scene.text.FontWeight;
 import javafx.stage.Screen;
 import javafx.stage.Stage;
 import javafx.util.Duration;
+import org.quizpans.services.GameService; // Upewnij się, że masz ten import
 
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set; // Dodaj ten import
 import java.util.regex.Pattern;
 
 public class TeamSetupFrame {
@@ -49,7 +52,7 @@ public class TeamSetupFrame {
         this.backAction = null;
 
         teamSizeComboBox = new ComboBox<>();
-        categoryComboBox = new ComboBox<>();
+        categoryComboBox = new ComboBox<>(); // Inicjalizujemy ComboBox
         answerTimeSlider = new Slider(10, 120, 30);
         team1Field = new TextField();
         team2Field = new TextField();
@@ -57,16 +60,16 @@ public class TeamSetupFrame {
         team2MembersPanel = new VBox(10);
 
         mainPanel = new VBox(30);
-        settingsPanel = new VBox(20);
+        settingsPanel = new VBox(20); // Inicjalizujemy settingsPanel
         scrollPane = new ScrollPane();
 
         commonSetup();
     }
 
     public TeamSetupFrame(Stage primaryStage, Runnable onBack) {
-        this(primaryStage);
+        this(primaryStage); // Wywołuje główny konstruktor
         this.backAction = onBack;
-        initializeMainPanelStructure();
+        // initializeMainPanelStructure() jest już wołane w commonSetup, które jest wołane z głównego konstruktora
     }
 
     private void commonSetup() {
@@ -92,8 +95,9 @@ public class TeamSetupFrame {
         answerTimeSlider.setShowTickLabels(true);
         answerTimeSlider.setSnapToTicks(true);
 
-        initializeMainPanelStructure();
-        initializeSettingsPanelStructure();
+        // Inicjalizacja paneli musi nastąpić przed ich użyciem
+        initializeSettingsPanelStructure(); // Najpierw inicjalizujemy panel ustawień (tam jest categoryComboBox)
+        initializeMainPanelStructure();   // Potem główny panel
 
         scrollPane.setContent(mainPanel);
         scrollPane.setFitToWidth(true);
@@ -102,17 +106,20 @@ public class TeamSetupFrame {
         scrollPane.setStyle("-fx-background-color: transparent; -fx-background: transparent;");
 
         Rectangle2D visualBounds = Screen.getPrimary().getVisualBounds();
-        this.stage.setWidth(visualBounds.getWidth());
-        this.stage.setHeight(visualBounds.getHeight());
-        this.stage.centerOnScreen();
+        if (this.stage != null) { // Dodano sprawdzenie, czy stage nie jest null
+            this.stage.setWidth(visualBounds.getWidth());
+            this.stage.setHeight(visualBounds.getHeight());
+            this.stage.centerOnScreen();
+        }
 
-        updateTeamMembers();
 
-        if (this.stage.getScene() == null) {
+        updateTeamMembers(); // To powinno być wywołane po inicjalizacji teamSizeComboBox w settingsPanel
+
+        if (this.stage != null && this.stage.getScene() == null) {
             this.scene = new Scene(getRootPane());
             loadStylesheets();
             this.stage.setScene(this.scene);
-        } else {
+        } else if (this.stage != null) {
             this.scene = this.stage.getScene();
             if (this.scene.getRoot() != getRootPane()) {
                 this.scene.setRoot(getRootPane());
@@ -120,7 +127,7 @@ public class TeamSetupFrame {
             loadStylesheets();
         }
 
-        if (this.scene.getFill() == null || !this.scene.getFill().equals(createBackgroundGradient())) {
+        if (this.scene != null && (this.scene.getFill() == null || !this.scene.getFill().equals(createBackgroundGradient()))) {
             this.scene.setFill(createBackgroundGradient());
         }
     }
@@ -129,13 +136,15 @@ public class TeamSetupFrame {
         try {
             String cssPath = getClass().getResource("/styles.css").toExternalForm();
             if (scene != null && cssPath != null) {
-                if (scene.getStylesheets() == null) {
+                if (scene.getStylesheets() == null) { // Powinno być: scene.getStylesheets().isEmpty() lub dodanie bez sprawdzania
                     scene.getStylesheets().add(cssPath);
                 } else if (!scene.getStylesheets().contains(cssPath)) {
                     scene.getStylesheets().add(cssPath);
                 }
             }
-        } catch (Exception e) {}
+        } catch (Exception e) {
+            System.err.println("Błąd ładowania arkusza stylów w TeamSetupFrame: " + e.getMessage());
+        }
     }
 
     private LinearGradient createBackgroundGradient() {
@@ -154,11 +163,13 @@ public class TeamSetupFrame {
             if (appIcon.isError()) {
                 logoStream.close(); return;
             }
-            if (stage.getIcons().isEmpty()) {
+            if (stage != null && stage.getIcons().isEmpty()) { // Dodano sprawdzenie, czy stage nie jest null
                 stage.getIcons().add(appIcon);
             }
             logoStream.close();
-        } catch (Exception e) {}
+        } catch (Exception e) {
+            System.err.println("Błąd ładowania ikony aplikacji w TeamSetupFrame: " + e.getMessage());
+        }
     }
 
     private void addCapitalizationListener(TextField textField) {
@@ -182,9 +193,7 @@ public class TeamSetupFrame {
         mainPanel.getChildren().clear();
         mainPanel.setPadding(new Insets(30));
         mainPanel.setAlignment(Pos.TOP_CENTER);
-
         mainPanel.setMinHeight(Region.USE_PREF_SIZE);
-
 
         Label titleLabel = new Label("USTAW DRUŻYNY");
         titleLabel.setFont(Font.font("Arial", FontWeight.BOLD, 48));
@@ -196,14 +205,11 @@ public class TeamSetupFrame {
         teamDisplayArea.setAlignment(Pos.TOP_CENTER);
         VBox.setVgrow(teamDisplayArea, Priority.ALWAYS);
 
-
-
         VBox team1Panel = createTeamPanel("Drużyna 1", team1Field, team1MembersPanel);
         VBox team2Panel = createTeamPanel("Drużyna 2", team2Field, team2MembersPanel);
 
         HBox.setHgrow(team1Panel, Priority.ALWAYS);
         HBox.setHgrow(team2Panel, Priority.ALWAYS);
-
         teamDisplayArea.getChildren().addAll(team1Panel, team2Panel);
 
         HBox buttonPanel = new HBox(25);
@@ -226,16 +232,9 @@ public class TeamSetupFrame {
 
         startButton.setOnAction(e -> startGame());
         settingsButton.setOnAction(e -> switchToSettingsView());
-
         buttonPanel.getChildren().addAll(startButton, settingsButton);
-
         VBox.setMargin(buttonPanel, new Insets(20, 0, 10, 0));
-
-        mainPanel.getChildren().setAll(
-                titleLabel,
-                teamDisplayArea,
-                buttonPanel
-        );
+        mainPanel.getChildren().setAll(titleLabel, teamDisplayArea, buttonPanel);
     }
 
     private VBox createTeamPanel(String teamNameText, TextField teamNameField, VBox membersPanelContainer) {
@@ -263,7 +262,6 @@ public class TeamSetupFrame {
         membersPanelContainer.setSpacing(15);
         membersPanelContainer.setAlignment(Pos.TOP_CENTER);
         VBox.setVgrow(membersPanelContainer, Priority.ALWAYS);
-
         panel.getChildren().addAll(teamLabel, teamNameField, membersTitleLabel, membersPanelContainer);
         return panel;
     }
@@ -284,7 +282,7 @@ public class TeamSetupFrame {
     }
 
     private void initializeSettingsPanelStructure() {
-        settingsPanel.getChildren().clear();
+        settingsPanel.getChildren().clear(); // Upewnij się, że jest czysty przed ponowną inicjalizacją
         settingsPanel.setPadding(new Insets(30));
         settingsPanel.setAlignment(Pos.TOP_CENTER);
         settingsPanel.setFillWidth(true);
@@ -299,11 +297,35 @@ public class TeamSetupFrame {
         titleLabel.setEffect(new DropShadow(10, Color.BLACK));
         VBox.setMargin(titleLabel, new Insets(0, 0, 30, 0));
 
-        if(teamSizeComboBox.getItems().isEmpty()) teamSizeComboBox.getItems().addAll(1, 2, 3, 4, 5, 6);
-        if(teamSizeComboBox.getSelectionModel().isEmpty()) teamSizeComboBox.getSelectionModel().selectFirst();
+        if(teamSizeComboBox.getItems().isEmpty()) {
+            teamSizeComboBox.getItems().addAll(1, 2, 3, 4, 5, 6);
+        }
+        if(teamSizeComboBox.getSelectionModel().isEmpty() && !teamSizeComboBox.getItems().isEmpty()) {
+            teamSizeComboBox.getSelectionModel().selectFirst();
+        }
+        // Dodano listener do aktualizacji paneli członków drużyny
+        teamSizeComboBox.valueProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal != null) {
+                updateTeamMembers();
+            }
+        });
 
-        if(categoryComboBox.getItems().isEmpty()) categoryComboBox.getItems().addAll("Testowa1", "Testowa2");
-        if(categoryComboBox.getSelectionModel().isEmpty()) categoryComboBox.getSelectionModel().selectFirst();
+
+        // --- TUTAJ NASTĘPUJE KLUCZOWA ZMIANA ---
+        categoryComboBox.getItems().clear(); // Wyczyść stare, hardkodowane itemy
+        Set<String> availableCategories = GameService.getAvailableCategories();
+        if (availableCategories != null && !availableCategories.isEmpty()) {
+            categoryComboBox.setItems(FXCollections.observableArrayList(availableCategories));
+            if (categoryComboBox.getSelectionModel().isEmpty()) {
+                categoryComboBox.getSelectionModel().selectFirst();
+            }
+        } else {
+            // Co zrobić, jeśli nie ma kategorii? Można dodać domyślną lub komunikat.
+            categoryComboBox.getItems().add("Brak kategorii w bazie");
+            categoryComboBox.getSelectionModel().selectFirst();
+            categoryComboBox.setDisable(true); // Wyłącz wybór, jeśli nie ma sensownych opcji
+        }
+        // --- KONIEC KLUCZOWEJ ZMIANY ---
 
         SettingsPanel settingsContent = new SettingsPanel(teamSizeComboBox, categoryComboBox, answerTimeSlider);
         VBox.setVgrow(settingsContent, Priority.ALWAYS);
@@ -317,7 +339,13 @@ public class TeamSetupFrame {
 
     private void updateTeamMembers() {
         Integer selectedSize = teamSizeComboBox.getValue();
-        if (selectedSize == null) selectedSize = 1;
+        if (selectedSize == null) {
+            if (!teamSizeComboBox.getItems().isEmpty()) {
+                selectedSize = teamSizeComboBox.getItems().get(0); // Domyślnie pierwszy element
+            } else {
+                selectedSize = 1; // Absolutny fallback
+            }
+        }
         int teamSize = selectedSize;
         updateTeamPanel(team1MembersPanel, teamSize);
         updateTeamPanel(team2MembersPanel, teamSize);
@@ -326,11 +354,11 @@ public class TeamSetupFrame {
     private void updateTeamPanel(VBox membersPanelContainer, int size) {
         List<String> currentNames = new ArrayList<>();
         for (javafx.scene.Node node : membersPanelContainer.getChildren()) {
-            if (node instanceof VBox) {
+            if (node instanceof VBox) { // Powinno być bardziej szczegółowe sprawdzenie, np. getStyleClass().contains("player-card")
                 for (javafx.scene.Node child : ((VBox) node).getChildren()) {
                     if (child instanceof TextField) {
                         currentNames.add(((TextField) child).getText());
-                        break;
+                        break; // Zakładamy jedno pole TextField na kartę gracza
                     }
                 }
             }
@@ -348,7 +376,7 @@ public class TeamSetupFrame {
             playerNumberLabel.getStyleClass().add("player-number-label");
 
             TextField playerNameField = new TextField();
-            if (i < currentNames.size()) {
+            if (i < currentNames.size() && currentNames.get(i) != null) {
                 playerNameField.setText(currentNames.get(i));
             }
             playerNameField.setPromptText("Imię gracza " + (i + 1));
@@ -382,12 +410,12 @@ public class TeamSetupFrame {
             return;
         }
 
-        if (finalSelectedCategory == null || finalSelectedCategory.trim().isEmpty()) {
-            showErrorAlert("Proszę wybrać kategorię pytań.", "Błąd");
+        if (finalSelectedCategory == null || finalSelectedCategory.trim().isEmpty() || finalSelectedCategory.equals("Brak kategorii w bazie")) {
+            showErrorAlert("Proszę wybrać poprawną kategorię pytań.", "Błąd");
             return;
         }
 
-        Scene currentScene = stage.getScene();
+        Scene currentScene = (stage != null) ? stage.getScene() : null; // Dodano sprawdzenie, czy stage nie jest null
         if (currentScene == null) {
             showErrorAlert("Błąd: Brak sceny do przełączenia.", "Błąd krytyczny");
             return;
@@ -409,12 +437,12 @@ public class TeamSetupFrame {
                     this.stage
             );
 
-            teamSelectionScreen.initializeFrameContent();
+            teamSelectionScreen.initializeFrameContent(); // Upewnij się, że ta metoda istnieje i działa
             Parent teamSelectionRoot = teamSelectionScreen.getRootPane();
 
             if (teamSelectionRoot == null) {
                 showErrorAlert("Błąd inicjalizacji następnego ekranu (root jest null).", "Błąd krytyczny");
-                currentScene.setRoot(currentRoot);
+                currentScene.setRoot(currentRoot); // Przywróć poprzedni root
                 FadeTransition fadeInFail = new FadeTransition(Duration.millis(300), currentRoot);
                 fadeInFail.setFromValue(0.0);
                 fadeInFail.setToValue(1.0);
@@ -469,13 +497,16 @@ public class TeamSetupFrame {
                 }
                 dialogPane.getStyleClass().add("custom-alert");
             }
-        } catch (Exception e) {}
+        } catch (Exception e) {
+            System.err.println("Błąd ładowania CSS dla alertu w TeamSetupFrame: " + e.getMessage());
+        }
         alert.showAndWait();
     }
 
     private void switchRootWithFade(Parent newRoot) {
         if (scene == null) {
-            System.err.println("Błąd krytyczny: Scena jest null w switchRootWithFade!");
+            System.err.println("Błąd krytyczny: Scena jest null w switchRootWithFade (TeamSetupFrame)!");
+            if (stage != null && newRoot != null) stage.setScene(new Scene(newRoot)); // Próba ratunkowa
             return;
         }
         Parent currentRoot = scene.getRoot();
@@ -498,29 +529,30 @@ public class TeamSetupFrame {
     }
 
     private void switchToSettingsView() {
-        if (settingsPanel.getChildren().isEmpty()) {
-            initializeSettingsPanelStructure();
-        }
+        // initializeSettingsPanelStructure() jest już wołane w commonSetup lub może być wywołane tutaj ponownie, jeśli jest potrzeba odświeżenia
+        // Jeśli settingsPanel jest już skonstruowany i wypełniony w commonSetup, to wywołanie poniżej wystarczy.
+        // Jeśli chcesz dynamicznie odświeżać kategorie za każdym razem, gdy wchodzisz do ustawień, to tutaj:
+        // initializeSettingsPanelStructure(); // Odkomentuj, jeśli kategorie mają być ładowane przy każdym wejściu
         switchRootWithFade(settingsPanel);
-        stage.setTitle("Ustawienia Gry - Quizpans");
+        if (stage != null) stage.setTitle("Ustawienia Gry - Quizpans");
     }
 
     private void switchToMainPanel() {
-        updateTeamMembers();
+        updateTeamMembers(); // Upewnij się, że lista członków jest aktualna po zmianie liczby
         switchRootWithFade(scrollPane);
-        stage.setTitle("Ustawienia drużyn - Quizpans");
+        if (stage != null) stage.setTitle("Ustawienia drużyn - Quizpans");
     }
 
     public Parent getRootPane() {
         if (this.scrollPane == null) {
-            System.err.println("Błąd krytyczny: scrollPane jest null w getRootPane!");
-            return new VBox();
+            System.err.println("Błąd krytyczny: scrollPane jest null w getRootPane (TeamSetupFrame)!");
+            return new VBox(); // Zwróć pusty VBox, aby uniknąć NullPointerException
         }
         if (this.scrollPane.getContent() == null && this.mainPanel != null) {
             this.scrollPane.setContent(this.mainPanel);
         } else if (this.scrollPane.getContent() == null && this.mainPanel == null) {
-            System.err.println("Krytyczny błąd: scrollPane i mainPanel są null w getRootPane!");
-            return new VBox();
+            System.err.println("Krytyczny błąd: scrollPane i mainPanel są null w getRootPane (TeamSetupFrame)!");
+            return new VBox(); // Zwróć pusty VBox
         }
         return this.scrollPane;
     }

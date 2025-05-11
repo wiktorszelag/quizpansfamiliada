@@ -31108,7 +31108,7 @@
 ;twardzica;(specjalistycznie) sklerenchyma;#
 ;twardziel;osiłek;mocarz;siłacz;herkules;atleta;#
 ;twardziel;dysk stały;dysk twardy;#
-;twaróg;ser biały;#
+;twaróg;ser biały;ser;#
 ;twarz;oblicze;(książkowo) fizjonomia;(książkowo) fizys;(książkowo) lico;(książkowo) płeć;buzia;(potocznie) dziób;(potocznie) facjata;(potocznie) gęba;(potocznie) ryj;(potocznie) ryło;(potocznie) paszcza;(potocznie) pysk;#
 ;twarz;postać;człowiek;osoba;(potocznie) buzia;#
 ;twarz;oblicze;wariant;odmiana;postać;#

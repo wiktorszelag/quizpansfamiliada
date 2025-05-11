@@ -20,8 +20,10 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
 import javafx.util.Duration;
+import org.quizpans.utils.AutoClosingAlerts;
 import org.quizpans.services.GameService;
 import org.quizpans.utils.TextNormalizer;
+import org.quizpans.gui.EndGameFrame;
 
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -86,7 +88,6 @@ public class GameFrame {
     private Map<String, List<Integer>> playerCorrectAnswersPerRound = new LinkedHashMap<>();
     private Set<String> allPlayerNamesForStats = new LinkedHashSet<>();
 
-
     private static final String HIDDEN_ANSWER_PLACEHOLDER = "■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■";
 
     public GameFrame(String selectedCategory, int answerTime, String team1Name, String team2Name, boolean isTeam1Turn, List<String> team1Members, List<String> team2Members, Stage stage, GameService existingGameService) {
@@ -138,18 +139,19 @@ public class GameFrame {
             String normalizedQuestion = TextNormalizer.normalizeToBaseForm(gameService.getCurrentQuestion());
             if (!usedQuestions.contains(normalizedQuestion)) {
                 usedQuestions.add(normalizedQuestion);
-            } else {
-                System.out.println("Ostrzeżenie: Pytanie '" + gameService.getCurrentQuestion().substring(0, Math.min(30, gameService.getCurrentQuestion().length())) + "...' zostało już użyte.");
             }
             prepareNewRoundVisuals();
             startTimer();
         } else {
             if (uiInitialized) {
-                showCriticalError("Nie udało się załadować danych gry (pytanie początkowe). Gra nie może być kontynuowana.");
+                if (!gameFinished) {
+                    Platform.runLater(this::showEndOfRoundOrGameScreen);
+                } else {
+                    showCriticalError("Nie udało się załadować danych gry (pytanie początkowe). Gra nie może być kontynuowana.");
+                }
             }
         }
     }
-
 
     private void setFrameProperties() {
         stage.setTitle("QuizPans");
@@ -318,7 +320,6 @@ public class GameFrame {
         }
     }
 
-
     private void setInitialPlayerIndexForRound() {
         int baseIndex = currentRoundNumber - 1;
         if (!team1Members.isEmpty()) {
@@ -415,7 +416,6 @@ public class GameFrame {
         updateCurrentPlayerLabel();
     }
 
-
     private void continueTurnForCurrentTeam() {
         advancePlayerInCurrentTeam();
         resetTimer();
@@ -457,7 +457,7 @@ public class GameFrame {
             updateTeamLabels();
             showInfo("Przejęcie udane! Punkty (" + roundPoints + ") dla drużyny " + getCurrentTeamName() + "!", false);
             advancePlayerInCurrentTeam();
-            endRound(false);
+            endRound();
             return;
         }
 
@@ -504,7 +504,7 @@ public class GameFrame {
                 updateTeamLabels();
                 showInfo("Wszystkie odpowiedzi odkryte! Runda dla drużyny " + getCurrentTeamName() + "!", false);
                 advancePlayerInCurrentTeam();
-                endRound(true);
+                endRound();
             } else {
                 continueTurnForCurrentTeam();
             }
@@ -561,7 +561,7 @@ public class GameFrame {
             showInfo("Błędna odpowiedź przy próbie przejęcia! Punkty ("+ roundPoints +") wędrują do drużyny " + getOpponentTeamName() + "!", false);
             advancePlayerInCurrentTeam();
             awardPointsToOpponent();
-            endRound(false);
+            endRound();
         } else if (hadControlBeforeError) {
             if (currentTeamErrors >= 3) {
                 showInfo("Trzeci błąd! Szansa na przejęcie dla drużyny " + getOpponentTeamName() + "!", false);
@@ -647,7 +647,7 @@ public class GameFrame {
         if (wasStealing) {
             message += "Próba przejęcia nieudana. Punkty ("+ roundPoints +") wędrują do drużyny " + getOpponentTeamName() + "!";
             advancePlayerInCurrentTeam();
-            nextAction = () -> { awardPointsToOpponent(); endRound(false); };
+            nextAction = () -> { awardPointsToOpponent(); endRound(); };
         } else if (hadControlBeforeTimeout) {
             if (errorsAfterTimeout >= 3) {
                 message += "Trzeci błąd z powodu czasu! Szansa na przejęcie dla drużyny " + getOpponentTeamName() + "!";
@@ -680,23 +680,40 @@ public class GameFrame {
         if (nextAction != null) Platform.runLater(nextAction);
     }
 
-    private void endRound(boolean pointsAwardedToCurrentTeamItself) {
+    private void endRound() {
         if (!gameFinished) {
             gameFinished = true;
             if(answerField != null) answerField.setDisable(true);
             if (timer != null) timer.stop();
             timerWasRunningBeforeAlert = false;
-
             updateTeamLabels();
-            Platform.runLater(this::showEndOfRoundDialog);
+            Platform.runLater(this::showEndOfRoundOrGameScreen);
         }
     }
 
-    private void showEndOfRoundDialog() {
-        boolean maxRoundsReached = (currentRoundNumber >= MAX_ROUNDS);
-        boolean gameCanContinue = !maxRoundsReached;
+    private void showEndOfRoundOrGameScreen() {
+        boolean isFinalRound = (currentRoundNumber >= MAX_ROUNDS);
+        boolean noMoreQuestionsAvailable = (gameService != null && gameService.getCurrentQuestion() == null && currentRoundNumber < MAX_ROUNDS && !isFinalRound);
 
-        if (gameCanContinue) {
+        if (isFinalRound || noMoreQuestionsAvailable) {
+            Map<String, List<Integer>> finalPlayerStats = new LinkedHashMap<>(playerCorrectAnswersPerRound);
+            Runnable playAgainAction = this::returnToSetupScreen;
+            Runnable exitAction = Platform::exit;
+
+            EndGameFrame endGameScreen = new EndGameFrame(
+                    this.stage,
+                    this.team1Name,
+                    this.team2Name,
+                    this.team1Score,
+                    this.team2Score,
+                    new ArrayList<>(this.team1Members),
+                    new ArrayList<>(this.team2Members),
+                    finalPlayerStats,
+                    playAgainAction,
+                    exitAction
+            );
+            endGameScreen.show();
+        } else {
             Set<String> revealedCopy = new HashSet<>(this.revealedAnswerBaseFormsInRound);
             Map<String, List<Integer>> statsCopy = new LinkedHashMap<>();
             for(Map.Entry<String, List<Integer>> entry : playerCorrectAnswersPerRound.entrySet()){
@@ -706,12 +723,10 @@ public class GameFrame {
             NextRoundFrame nextRoundScreen = new NextRoundFrame(
                     this.stage,
                     () -> {
-                        this.prepareNewRound();
-                        if (!gameFinished && this.mainPane != null && this.stage.getScene() != null) {
-                            Parent gameRootPane = this.getRootPane();
-                            this.stage.getScene().setRoot(gameRootPane);
-                            if (this.gameService != null && this.gameService.getCurrentQuestion() != null) {
-                            }
+                        GameFrame.this.prepareNewRound();
+                        if (!gameFinished && GameFrame.this.mainPane != null && GameFrame.this.stage.getScene() != null) {
+                            Parent gameRootPane = GameFrame.this.getRootPane();
+                            GameFrame.this.stage.getScene().setRoot(gameRootPane);
                             FadeTransition fadeInGame = new FadeTransition(Duration.millis(300), gameRootPane);
                             fadeInGame.setFromValue(0.0);
                             fadeInGame.setToValue(1.0);
@@ -732,56 +747,6 @@ public class GameFrame {
                     this.team2Score
             );
             nextRoundScreen.show();
-        } else {
-            Alert alert = new Alert(AlertType.INFORMATION);
-            alert.setTitle("Koniec Gry!");
-
-            String roundEndMessage;
-            int roundsPlayedToEnd = Math.min(currentRoundNumber, MAX_ROUNDS);
-            if (maxRoundsReached) {
-                roundEndMessage = "Osiągnięto maksymalną liczbę rund (" + MAX_ROUNDS + "). Koniec gry!";
-                alert.setHeaderText("Koniec gry po " + roundsPlayedToEnd + " rundach!");
-            } else {
-                roundEndMessage = "Brak dostępnych pytań w tej kategorii. Koniec gry!";
-                alert.setHeaderText("Koniec gry po " + roundsPlayedToEnd + " rundach!");
-                if (roundsPlayedToEnd == 0) {
-                    roundEndMessage = "Brak pytań w wybranej kategorii. Nie można rozpocząć gry.";
-                    alert.setHeaderText("Błąd Startu Gry");
-                }
-            }
-
-            Label content = new Label(team1Name + ": " + team1Score + " pkt\n" +
-                    team2Name + ": " + team2Score + " pkt\n\n" +
-                    roundEndMessage);
-            content.setFont(Font.font("Arial", 20)); content.setWrapText(true);
-
-            VBox alertContent = new VBox(20, content);
-            alertContent.setAlignment(Pos.CENTER);
-            alertContent.setPadding(new Insets(20));
-
-            DialogPane dialogPane = alert.getDialogPane();
-            try {
-                String cssPath = getClass().getResource("/styles.css").toExternalForm();
-                if (cssPath != null && !dialogPane.getStylesheets().contains(cssPath)) {
-                    dialogPane.getStylesheets().add(cssPath);
-                    dialogPane.getStyleClass().add("custom-alert");
-                }
-            } catch (Exception e) { System.err.println("Błąd ładowania CSS dla alertu: " + e.getMessage()); }
-            dialogPane.setContent(alertContent);
-            dialogPane.setPrefSize(500, 300);
-
-            ButtonType closeButton = new ButtonType("Zamknij grę", ButtonBar.ButtonData.CANCEL_CLOSE);
-            ButtonType newGameButton = new ButtonType("Nowa gra (Ustawienia)", ButtonBar.ButtonData.YES);
-            alert.getButtonTypes().setAll(newGameButton, closeButton);
-
-            alert.setOnCloseRequest(e -> Platform.runLater(Platform::exit));
-
-            Optional<ButtonType> result = alert.showAndWait();
-            if (result.isPresent() && result.get() == newGameButton) {
-                returnToSetupScreen();
-            } else {
-                Platform.exit();
-            }
         }
     }
 
@@ -812,7 +777,9 @@ public class GameFrame {
                 System.err.println("Próba " + (attempts + 1) + " ładowania pytania nie powiodła się: " + e.getMessage());
                 if (attempts >= MAX_ATTEMPTS_LOAD - 1) {
                     gameService.setCurrentQuestionToNull();
-                    if(!gameFinished) showCriticalError("Nie udało się załadować nowego pytania po " + MAX_ATTEMPTS_LOAD + " próbach: " + e.getMessage());
+                    if(!gameFinished && stage.isShowing()){
+                        Platform.runLater(() -> showCriticalError("Nie udało się załadować nowego pytania po " + MAX_ATTEMPTS_LOAD + " próbach: " + e.getMessage()));
+                    }
                     return false;
                 }
             }
@@ -821,7 +788,9 @@ public class GameFrame {
             if (newQuestion == null) {
                 if (attempts >= MAX_ATTEMPTS_LOAD) {
                     gameService.setCurrentQuestionToNull();
-                    if(!gameFinished) showCriticalError("Nie udało się załadować nowego pytania: brak pytań po " + MAX_ATTEMPTS_LOAD + " próbach.");
+                    if(!gameFinished && stage.isShowing()){
+                        Platform.runLater(() -> showCriticalError("Nie udało się załadować nowego pytania: brak pytań po " + MAX_ATTEMPTS_LOAD + " próbach."));
+                    }
                     break;
                 }
                 try { Thread.sleep(100); } catch (InterruptedException ignored) { Thread.currentThread().interrupt(); }
@@ -833,17 +802,17 @@ public class GameFrame {
                 questionLoadedSuccessfully = true;
                 return true;
             } else {
-                System.out.println("Pytanie '" + newQuestion.substring(0, Math.min(30, newQuestion.length())) +"...' już użyte, próba kolejna...");
             }
         } while (attempts < MAX_ATTEMPTS_LOAD);
 
         if (!questionLoadedSuccessfully) {
             gameService.setCurrentQuestionToNull();
-            if(!gameFinished) showCriticalError("Nie udało się znaleźć unikalnego pytania po " + MAX_ATTEMPTS_LOAD + " próbach.");
+            if(!gameFinished && stage.isShowing()){
+                Platform.runLater(() -> showCriticalError("Nie udało się znaleźć unikalnego pytania po " + MAX_ATTEMPTS_LOAD + " próbach."));
+            }
         }
         return questionLoadedSuccessfully;
     }
-
 
     private void returnToSetupScreen() {
         if (timer != null) timer.stop();
@@ -856,6 +825,10 @@ public class GameFrame {
         currentRoundNumber = 1;
         team1Score = 0;
         team2Score = 0;
+
+        if (gameService != null) {
+            gameService.setCurrentQuestionToNull();
+        }
 
         TeamSetupFrame setupFrame = new TeamSetupFrame(stage);
         Parent setupRoot = setupFrame.getRootPane();
@@ -879,6 +852,7 @@ public class GameFrame {
                 if (cssPath != null) newScene.getStylesheets().add(cssPath);
             } catch (Exception e) {System.err.println("Błąd ładowania CSS dla TeamSetupFrame: " + e.getMessage());}
             stage.setScene(newScene);
+            stage.setMaximized(true);
             stage.show();
             FadeTransition fadeIn = new FadeTransition(Duration.millis(300), setupRoot);
             fadeIn.setFromValue(0.0);
@@ -896,6 +870,9 @@ public class GameFrame {
         if (gameService == null || gameService.getCurrentQuestion() == null) {
             questionLabel.setText("Brak dostępnych pytań do wyświetlenia...");
             for (BorderPane pane : answerPanes) if (pane != null) pane.setVisible(false);
+            if (!gameFinished) {
+                Platform.runLater(this::showEndOfRoundOrGameScreen);
+            }
             return;
         }
 
@@ -918,7 +895,7 @@ public class GameFrame {
 
         if (currentRoundNumber >= MAX_ROUNDS) {
             if (!gameFinished) {
-                Platform.runLater(this::showGameEndDialog);
+                Platform.runLater(this::showEndOfRoundOrGameScreen);
             }
             return;
         }
@@ -927,7 +904,7 @@ public class GameFrame {
 
         if (!newQuestionLoaded) {
             if (!gameFinished) {
-                Platform.runLater(this::showGameEndDialog);
+                Platform.runLater(this::showEndOfRoundOrGameScreen);
             }
             return;
         }
@@ -963,46 +940,6 @@ public class GameFrame {
             answerField.setPromptText("Wpisz odpowiedź i naciśnij Enter");
         }
         resetTimer();
-    }
-
-    private void showGameEndDialog() {
-        gameFinished = true;
-        if(answerField != null) answerField.setDisable(true);
-        if (timer != null) timer.stop();
-        timerWasRunningBeforeAlert = false;
-
-        Alert alert = new Alert(AlertType.INFORMATION);
-        alert.setTitle("Koniec Gry!");
-        String winnerText;
-        if (team1Score > team2Score) winnerText = "Wygrywa drużyna " + team1Name + "!";
-        else if (team2Score > team1Score) winnerText = "Wygrywa drużyna " + team2Name + "!";
-        else winnerText = "Remis!";
-
-        int roundsActuallyPlayed = Math.min(currentRoundNumber, MAX_ROUNDS);
-        if (roundsActuallyPlayed == 0 && (team1Score > 0 || team2Score > 0)) roundsActuallyPlayed = 1;
-
-
-        alert.setHeaderText("Koniec gry po " + roundsActuallyPlayed + " rundach!\n" + winnerText);
-        alert.setContentText("Wynik końcowy:\n" + team1Name + ": " + team1Score + " pkt\n" + team2Name + ": " + team2Score + " pkt");
-        DialogPane dialogPane = alert.getDialogPane();
-        try {
-            String cssPath = getClass().getResource("/styles.css").toExternalForm();
-            if (cssPath != null && !dialogPane.getStylesheets().contains(cssPath)) { dialogPane.getStylesheets().add(cssPath); dialogPane.getStyleClass().add("custom-alert"); }
-        } catch (Exception e) { System.err.println("Błąd ładowania CSS dla alertu końcowego: " + e.getMessage());}
-        dialogPane.setPrefSize(500, 300);
-
-        ButtonType closeButton = new ButtonType("Zamknij grę", ButtonBar.ButtonData.CANCEL_CLOSE);
-        ButtonType newGameButton = new ButtonType("Nowa gra (Ustawienia)", ButtonBar.ButtonData.YES);
-        alert.getButtonTypes().setAll(newGameButton, closeButton);
-
-        alert.setOnCloseRequest(e -> Platform.runLater(Platform::exit));
-
-        Optional<ButtonType> result = alert.showAndWait();
-        if (result.isPresent() && result.get() == newGameButton) {
-            returnToSetupScreen();
-        } else {
-            Platform.exit();
-        }
     }
 
     private void resetTimer() {
@@ -1049,6 +986,10 @@ public class GameFrame {
     private void showInfo(String message) { showInfo(message, true); }
 
     private void showInfo(String message, boolean shouldResetOrContinueTimerAfter) {
+        showInfo(message, shouldResetOrContinueTimerAfter, Duration.seconds(10));
+    }
+
+    private void showInfo(String message, boolean shouldResetOrContinueTimerAfter, Duration autoCloseDuration) {
         boolean isEndOfRoundOrGameRelated = message.toLowerCase().contains("koniec rundy") ||
                 message.toLowerCase().contains("koniec gry") ||
                 message.toLowerCase().contains("wygrywa drużyna") ||
@@ -1060,20 +1001,19 @@ public class GameFrame {
             return;
         }
 
-        boolean localTimerWasRunning = (timer != null && timer.getStatus() == Timeline.Status.RUNNING);
+        boolean localTimerWasRunning = (timer != null && timer.getStatus() == Animation.Status.RUNNING);
         if (localTimerWasRunning) {
             timer.stop();
         }
 
-        Alert alert = new Alert(AlertType.INFORMATION);
-        alert.setTitle("Informacja"); alert.setHeaderText(null); alert.setContentText(message);
-        DialogPane dialogPane = alert.getDialogPane();
-        try {
-            String cssPath = getClass().getResource("/styles.css").toExternalForm();
-            if (cssPath != null && !dialogPane.getStylesheets().contains(cssPath)) { dialogPane.getStylesheets().add(cssPath); dialogPane.getStyleClass().add("custom-alert"); }
-        } catch (Exception e) { System.err.println("Błąd ładowania CSS dla informacji: " + e.getMessage()); }
-
-        alert.showAndWait();
+        AutoClosingAlerts.show(
+                stage,
+                AlertType.INFORMATION,
+                "Informacja",
+                null,
+                message,
+                autoCloseDuration
+        );
 
         if (!gameFinished) {
             if (shouldResetOrContinueTimerAfter) {
@@ -1086,26 +1026,25 @@ public class GameFrame {
     }
 
     private void showCriticalError(String message) {
-        if (timer != null && timer.getStatus() == Timeline.Status.RUNNING) timer.stop();
+        if (timer != null && timer.getStatus() == Animation.Status.RUNNING) timer.stop();
         timerWasRunningBeforeAlert = false;
         gameFinished = true;
         if(answerField != null) answerField.setDisable(true);
 
         Platform.runLater(() -> {
-            Alert alert = new Alert(AlertType.ERROR);
-            alert.setTitle("Błąd krytyczny"); alert.setHeaderText("Wystąpił poważny błąd!");
-            alert.setContentText(message + "\n\nAplikacja może wymagać ponownego uruchomienia lub powrotu do ustawień.");
-            DialogPane dialogPane = alert.getDialogPane();
-            try {
-                String cssPath = getClass().getResource("/styles.css").toExternalForm();
-                if (cssPath != null && !dialogPane.getStylesheets().contains(cssPath)) { dialogPane.getStylesheets().add(cssPath); dialogPane.getStyleClass().add("custom-alert"); }
-            } catch (Exception e) { System.err.println("Błąd ładowania CSS dla błędu krytycznego: " + e.getMessage()); }
-
             ButtonType returnButton = new ButtonType("Wróć do ustawień", ButtonBar.ButtonData.BACK_PREVIOUS);
             ButtonType closeButton = new ButtonType("Zamknij aplikację", ButtonBar.ButtonData.CANCEL_CLOSE);
-            alert.getButtonTypes().setAll(returnButton, closeButton);
 
-            Optional<ButtonType> result = alert.showAndWait();
+            Optional<ButtonType> result = AutoClosingAlerts.show(
+                    stage,
+                    AlertType.ERROR,
+                    "Błąd krytyczny",
+                    "Wystąpił poważny błąd!",
+                    message + "\n\nAplikacja może wymagać ponownego uruchomienia lub powrotu do ustawień.",
+                    Duration.seconds(10),
+                    returnButton, closeButton
+            );
+
             if (result.isPresent() && result.get() == returnButton) {
                 returnToSetupScreen();
             } else {
@@ -1131,7 +1070,7 @@ public class GameFrame {
             } else {
                 applyStylesheets();
             }
-
+            stage.setMaximized(true);
             stage.show();
             if (stage.getScene() != null && stage.getScene().getRoot() != null) {
                 FadeTransition ft = new FadeTransition(Duration.millis(500), stage.getScene().getRoot());
