@@ -10,7 +10,9 @@ import javafx.scene.Scene;
 import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.*;
 import javafx.scene.effect.DropShadow;
+import javafx.scene.effect.GaussianBlur;
 import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.paint.CycleMethod;
@@ -23,7 +25,6 @@ import javafx.util.Duration;
 import org.quizpans.utils.AutoClosingAlerts;
 import org.quizpans.services.GameService;
 import org.quizpans.utils.TextNormalizer;
-import org.quizpans.gui.EndGameFrame;
 
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -39,8 +40,11 @@ import java.util.LinkedHashSet;
 public class GameFrame {
     private Stage stage;
     private GameService gameService;
-    private BorderPane mainPane;
+    private BorderPane gameContentPane;
+    private StackPane rootStackPane;
+    private VBox pauseMenuPane;
     private boolean uiInitialized = false;
+    private boolean isPaused = false;
 
     private final BorderPane[] answerPanes = new BorderPane[6];
     private final TextField answerField = new TextField();
@@ -76,7 +80,6 @@ public class GameFrame {
     private int firstTeamAnswerPosition = -1;
     private boolean gameFinished = false;
     private final Set<String> usedQuestions = new HashSet<>();
-    private ProgressIndicator loadingIndicator;
     private int team1Errors = 0;
     private int team2Errors = 0;
     private int currentRoundNumber = 1;
@@ -112,15 +115,16 @@ public class GameFrame {
         if (this.gameService == null) {
             try {
                 this.gameService = new GameService(selectedCategory);
-                this.gameService.loadQuestion();
             } catch (RuntimeException e) {
                 showCriticalError("Nie udało się załadować danych gry przy inicjalizacji: " + e.getMessage());
             }
-        } else if (this.gameService.getCurrentQuestion() == null) {
+        } else if (this.gameService.getCurrentQuestion() == null && !gameFinished) {
             try {
                 this.gameService.loadQuestion();
             } catch (RuntimeException e) {
-                showCriticalError("Nie udało się załadować danych gry przy ponownym ładowaniu: " + e.getMessage());
+                if (!gameFinished) {
+                    showCriticalError("Nie udało się załadować danych gry przy ponownym ładowaniu: " + e.getMessage());
+                }
             }
         }
     }
@@ -143,18 +147,19 @@ public class GameFrame {
             prepareNewRoundVisuals();
             startTimer();
         } else {
-            if (uiInitialized) {
-                if (!gameFinished) {
-                    Platform.runLater(this::showEndOfRoundOrGameScreen);
-                } else {
-                    showCriticalError("Nie udało się załadować danych gry (pytanie początkowe). Gra nie może być kontynuowana.");
-                }
+            if (uiInitialized && !gameFinished) {
+                Platform.runLater(this::showEndOfRoundOrGameScreen);
+            } else if (uiInitialized && gameFinished) {
+
+            }
+            else {
+                showCriticalError("Nie udało się załadować danych gry (pytanie początkowe). Gra nie może być kontynuowana.");
             }
         }
     }
 
     private void setFrameProperties() {
-        stage.setTitle("QuizPans");
+        stage.setTitle("QuizPans - Rozgrywka");
         try {
             InputStream logoStream = getClass().getResourceAsStream("/logo.png");
             if (logoStream != null) {
@@ -179,18 +184,19 @@ public class GameFrame {
     }
 
     public Parent getRootPane() {
-        if (mainPane == null) {
+        if (rootStackPane == null) {
             initUI();
         }
-        return mainPane;
+        return rootStackPane;
     }
 
     private void initUI() {
         if (uiInitialized) { return; }
-        mainPane = new BorderPane();
+
+        gameContentPane = new BorderPane();
         LinearGradient gradient = new LinearGradient(0,0,1,1,true,CycleMethod.NO_CYCLE,new Stop(0,Color.web("#1a2a6c")),new Stop(1,Color.web("#b21f1f")));
-        mainPane.setBackground(new Background(new BackgroundFill(gradient, CornerRadii.EMPTY, Insets.EMPTY)));
-        mainPane.setPadding(new Insets(20));
+        gameContentPane.setBackground(new Background(new BackgroundFill(gradient, CornerRadii.EMPTY, Insets.EMPTY)));
+        gameContentPane.setPadding(new Insets(20));
 
         VBox topPanel = new VBox(15); topPanel.setAlignment(Pos.CENTER);
         questionLabel.setFont(Font.font("Arial", FontWeight.BOLD, 36)); questionLabel.setTextFill(Color.WHITE);
@@ -208,7 +214,7 @@ public class GameFrame {
         roundPointsLabel.setEffect(new DropShadow(10, Color.BLACK));
         timerBox.getChildren().addAll(timerLabel, roundPointsLabel);
         topPanel.getChildren().addAll(questionLabel, timerBox);
-        mainPane.setTop(topPanel); BorderPane.setMargin(topPanel, new Insets(20, 0, 20, 0));
+        gameContentPane.setTop(topPanel); BorderPane.setMargin(topPanel, new Insets(20, 0, 20, 0));
 
         GridPane centerContainer = new GridPane(); centerContainer.setAlignment(Pos.CENTER); centerContainer.setHgap(15);
         ColumnConstraints col1=new ColumnConstraints(); col1.setPercentWidth(15); col1.setHalignment(HPos.CENTER);
@@ -221,7 +227,7 @@ public class GameFrame {
         answersPanel.setPadding(new Insets(20)); answersPanel.getStyleClass().add("answer-panel");
         for (int i = 0; i < 6; i++) { answerPanes[i] = createAnswerPane(i + 1); answersPanel.getChildren().add(answerPanes[i]); }
         centerContainer.add(leftErrorPane, 0, 0); centerContainer.add(answersPanel, 1, 0); centerContainer.add(rightErrorPane, 2, 0);
-        mainPane.setCenter(centerContainer);
+        gameContentPane.setCenter(centerContainer);
 
         VBox bottomContainer = new VBox(15); bottomContainer.setAlignment(Pos.CENTER); bottomContainer.setPadding(new Insets(20, 0, 20, 0));
         currentPlayerLabel.setFont(Font.font("Arial", FontWeight.BOLD, 22)); currentPlayerLabel.setTextFill(Color.WHITE);
@@ -234,8 +240,90 @@ public class GameFrame {
         inputAndScoresBox.getChildren().addAll(team1Box, answerField, team2Box);
         HBox.setHgrow(team1Box, Priority.ALWAYS); HBox.setHgrow(answerField, Priority.NEVER); HBox.setHgrow(team2Box, Priority.ALWAYS);
         bottomContainer.getChildren().addAll(currentPlayerLabel, inputAndScoresBox);
-        mainPane.setBottom(bottomContainer);
+        gameContentPane.setBottom(bottomContainer);
+
+        Button pauseButton = new Button();
+        try (InputStream pauseIconStream = getClass().getResourceAsStream("/pause_icon.png")) {
+            if (pauseIconStream != null) {
+                ImageView pauseImageView = new ImageView(new Image(pauseIconStream));
+                pauseImageView.setFitHeight(32);
+                pauseImageView.setFitWidth(32);
+                pauseButton.setGraphic(pauseImageView);
+            } else {
+                pauseButton.setText("||");
+                pauseButton.setFont(Font.font("Arial", FontWeight.BOLD, 20));
+            }
+        } catch (Exception e) {
+            pauseButton.setText("||");
+            pauseButton.setFont(Font.font("Arial", FontWeight.BOLD, 20));
+            System.err.println("Nie udało się załadować ikony pauzy: " + e.getMessage());
+        }
+        pauseButton.getStyleClass().add("pause-button");
+        pauseButton.setStyle("-fx-background-color: rgba(0,0,0,0.5); -fx-background-radius: 25px; -fx-padding: 10px;");
+        pauseButton.setOnAction(e -> togglePauseMenu());
+
+        StackPane.setAlignment(pauseButton, Pos.TOP_RIGHT);
+        StackPane.setMargin(pauseButton, new Insets(15, 15, 0, 0));
+
+        pauseMenuPane = createPauseMenu();
+        pauseMenuPane.setVisible(false);
+
+        rootStackPane = new StackPane(gameContentPane, pauseMenuPane, pauseButton);
+        pauseButton.visibleProperty().bind(pauseMenuPane.visibleProperty().not());
+
         uiInitialized = true;
+    }
+
+    private VBox createPauseMenu() {
+        VBox menu = new VBox(20);
+        menu.setAlignment(Pos.CENTER);
+        menu.setPadding(new Insets(50));
+        menu.setStyle("-fx-background-color: rgba(0, 0, 0, 0.85); -fx-background-radius: 20px;");
+        menu.setMaxSize(400, 300);
+
+        Label pauseTitle = new Label("Pauza");
+        pauseTitle.setFont(Font.font("Arial", FontWeight.BOLD, 36));
+        pauseTitle.setTextFill(Color.GOLD);
+
+        Button resumeButton = new Button("Wznów Grę");
+        resumeButton.getStyleClass().add("main-menu-button");
+        resumeButton.setOnAction(e -> togglePauseMenu());
+
+        Button mainMenuButton = new Button("Menu Główne");
+        mainMenuButton.getStyleClass().add("main-menu-button");
+        mainMenuButton.setOnAction(e -> returnToSetupScreen());
+
+        Button exitAppButton = new Button("Zakończ Aplikację");
+        exitAppButton.getStyleClass().add("main-menu-button");
+        String originalStyle = resumeButton.getStyle() != null ? resumeButton.getStyle() : "";
+        exitAppButton.setStyle(originalStyle + "-fx-background-color: #F44336;");
+        exitAppButton.setOnAction(e -> Platform.exit());
+
+        menu.getChildren().addAll(pauseTitle, resumeButton, mainMenuButton, exitAppButton);
+        return menu;
+    }
+
+    private void togglePauseMenu() {
+        isPaused = !isPaused;
+        if (isPaused) {
+            if (timer != null && timer.getStatus() == Animation.Status.RUNNING) {
+                timer.pause();
+                timerWasRunningBeforeAlert = true;
+            }
+            answerField.setDisable(true);
+            pauseMenuPane.setVisible(true);
+            gameContentPane.setEffect(new GaussianBlur(10));
+            pauseMenuPane.toFront();
+
+        } else {
+            pauseMenuPane.setVisible(false);
+            gameContentPane.setEffect(null);
+            answerField.setDisable(gameFinished);
+            if (timerWasRunningBeforeAlert && timer != null && !gameFinished) {
+                timer.play();
+            }
+            timerWasRunningBeforeAlert = false;
+        }
     }
 
     private VBox createErrorsPanel(boolean isLeftPanel) {
@@ -357,11 +445,11 @@ public class GameFrame {
     }
 
     private void startTimer() {
-        if (gameFinished) { if(timer != null) timer.stop(); return; }
+        if (isPaused || gameFinished) { if(timer != null) timer.stop(); return; }
         if (timer != null) timer.stop();
         timeLeft = initialAnswerTime; updateTimerDisplay();
         timer = new Timeline( new KeyFrame(Duration.seconds(1), e -> {
-            if (gameFinished) { if(timer != null) timer.stop(); return; }
+            if (isPaused || gameFinished) { if(timer != null) timer.stop(); return; }
             timeLeft--; updateTimerDisplay();
             if (timeLeft <= 0) {
                 if(timer != null) timer.stop();
@@ -382,7 +470,7 @@ public class GameFrame {
     }
 
     private void processAnswer() {
-        if (gameFinished || answerField == null || answerField.isDisabled()) {
+        if (isPaused || gameFinished || answerField == null || answerField.isDisabled()) {
             return;
         }
         String userAnswer = answerField.getText().trim();
@@ -422,7 +510,7 @@ public class GameFrame {
     }
 
     private void handleCorrectAnswer(String correctAnswerBaseForm) {
-        if (gameFinished || gameService == null) return;
+        if (isPaused || gameFinished || gameService == null) return;
 
         int points = gameService.getPoints(correctAnswerBaseForm);
         int position = gameService.getAnswerPosition(correctAnswerBaseForm);
@@ -534,7 +622,7 @@ public class GameFrame {
     }
 
     private void registerError() {
-        if (gameFinished) return;
+        if (isPaused || gameFinished) return;
 
         boolean hadControlBeforeError = hasControl;
         boolean isStealing = stealOpportunity;
@@ -603,7 +691,7 @@ public class GameFrame {
         showInfo("Uwaga! Drużyna " + stealingTeamName + " ma jedną szansę na przejęcie wszystkich punktów!", false);
 
         Timeline pause = new Timeline(new KeyFrame(Duration.seconds(1), e -> {
-            if (gameFinished) return;
+            if (isPaused || gameFinished) return;
             isTeam1Turn = !isTeam1Turn;
             updateTeamLabels();
             updateCurrentPlayerLabel();
@@ -624,7 +712,7 @@ public class GameFrame {
     }
 
     private void handleTimeOut() {
-        if (gameFinished) return;
+        if (isPaused || gameFinished) return;
         if(answerField != null) answerField.setDisable(true);
 
         VBox panelToUpdate; int errorsAfterTimeout;
@@ -724,7 +812,7 @@ public class GameFrame {
                     this.stage,
                     () -> {
                         GameFrame.this.prepareNewRound();
-                        if (!gameFinished && GameFrame.this.mainPane != null && GameFrame.this.stage.getScene() != null) {
+                        if (!gameFinished && GameFrame.this.rootStackPane != null && GameFrame.this.stage.getScene() != null) {
                             Parent gameRootPane = GameFrame.this.getRootPane();
                             GameFrame.this.stage.getScene().setRoot(gameRootPane);
                             FadeTransition fadeInGame = new FadeTransition(Duration.millis(300), gameRootPane);
@@ -765,10 +853,11 @@ public class GameFrame {
             }
         }
 
-        int attempts = 0; final int MAX_ATTEMPTS_LOAD = 10; String newQuestion = null;
+        int attempts = 0; final int MAX_ATTEMPTS_LOAD = 10;
         boolean questionLoadedSuccessfully = false;
 
         do {
+            String newQuestion = null;
             try {
                 gameService.loadQuestion();
                 newQuestion = gameService.getCurrentQuestion();
@@ -778,7 +867,7 @@ public class GameFrame {
                 if (attempts >= MAX_ATTEMPTS_LOAD - 1) {
                     gameService.setCurrentQuestionToNull();
                     if(!gameFinished && stage.isShowing()){
-                        Platform.runLater(() -> showCriticalError("Nie udało się załadować nowego pytania po " + MAX_ATTEMPTS_LOAD + " próbach: " + e.getMessage()));
+
                     }
                     return false;
                 }
@@ -789,7 +878,7 @@ public class GameFrame {
                 if (attempts >= MAX_ATTEMPTS_LOAD) {
                     gameService.setCurrentQuestionToNull();
                     if(!gameFinished && stage.isShowing()){
-                        Platform.runLater(() -> showCriticalError("Nie udało się załadować nowego pytania: brak pytań po " + MAX_ATTEMPTS_LOAD + " próbach."));
+
                     }
                     break;
                 }
@@ -802,6 +891,7 @@ public class GameFrame {
                 questionLoadedSuccessfully = true;
                 return true;
             } else {
+                System.out.println("Pytanie '" + newQuestion.substring(0, Math.min(30,newQuestion.length())) + "...' było już użyte. Próba: " + attempts);
             }
         } while (attempts < MAX_ATTEMPTS_LOAD);
 
@@ -816,6 +906,7 @@ public class GameFrame {
 
     private void returnToSetupScreen() {
         if (timer != null) timer.stop();
+        isPaused = false;
         gameFinished = true;
         if(answerField != null) answerField.setDisable(true);
 
@@ -830,7 +921,20 @@ public class GameFrame {
             gameService.setCurrentQuestionToNull();
         }
 
-        TeamSetupFrame setupFrame = new TeamSetupFrame(stage);
+        TeamSetupFrame setupFrame = new TeamSetupFrame(stage, () -> {
+            MainMenuFrame mainMenu = new MainMenuFrame(stage);
+            if (stage.getScene() == null) {
+                Scene newSceneForMenu = new Scene(mainMenu.getRootPane());
+                try {
+                    String cssPath = getClass().getResource("/styles.css").toExternalForm();
+                    if (cssPath != null) newSceneForMenu.getStylesheets().add(cssPath);
+                } catch (Exception e) {System.err.println("Błąd ładowania CSS dla MainMenuFrame: " + e.getMessage());}
+                stage.setScene(newSceneForMenu);
+            } else {
+                stage.getScene().setRoot(mainMenu.getRootPane());
+            }
+            mainMenu.show();
+        });
         Parent setupRoot = setupFrame.getRootPane();
 
         if (setupRoot != null && stage.getScene() != null) {
@@ -868,7 +972,7 @@ public class GameFrame {
         if (questionLabel == null) { return; }
 
         if (gameService == null || gameService.getCurrentQuestion() == null) {
-            questionLabel.setText("Brak dostępnych pytań do wyświetlenia...");
+            questionLabel.setText("Brak dostępnych pytań...");
             for (BorderPane pane : answerPanes) if (pane != null) pane.setVisible(false);
             if (!gameFinished) {
                 Platform.runLater(this::showEndOfRoundOrGameScreen);
@@ -902,7 +1006,7 @@ public class GameFrame {
 
         boolean newQuestionLoaded = loadNewQuestionForRound();
 
-        if (!newQuestionLoaded) {
+        if (!newQuestionLoaded || gameService.getCurrentQuestion() == null) {
             if (!gameFinished) {
                 Platform.runLater(this::showEndOfRoundOrGameScreen);
             }
@@ -912,6 +1016,7 @@ public class GameFrame {
         currentRoundNumber++;
 
         gameFinished = false;
+        isPaused = false;
         roundPoints = 0;
         if (roundPointsLabel != null) roundPointsLabel.setText("Pkt: 0");
         revealedAnswers = 0;
@@ -943,7 +1048,7 @@ public class GameFrame {
     }
 
     private void resetTimer() {
-        if (gameFinished) {
+        if (isPaused || gameFinished) {
             if(timer != null) timer.stop();
             return;
         }
@@ -958,7 +1063,7 @@ public class GameFrame {
 
         if (!gameFinished) {
             timer = new Timeline(new KeyFrame(Duration.seconds(1), e -> {
-                if (gameFinished) { if(timer != null) timer.stop(); return; }
+                if (isPaused || gameFinished) { if(timer != null) timer.stop(); return; }
                 timeLeft--; updateTimerDisplay();
                 if (timeLeft <= 0) {
                     if(timer != null) timer.stop();
@@ -990,6 +1095,8 @@ public class GameFrame {
     }
 
     private void showInfo(String message, boolean shouldResetOrContinueTimerAfter, Duration autoCloseDuration) {
+        if (isPaused) return;
+
         boolean isEndOfRoundOrGameRelated = message.toLowerCase().contains("koniec rundy") ||
                 message.toLowerCase().contains("koniec gry") ||
                 message.toLowerCase().contains("wygrywa drużyna") ||
@@ -1022,12 +1129,11 @@ public class GameFrame {
                 }
             }
         }
-        timerWasRunningBeforeAlert = localTimerWasRunning;
     }
 
     private void showCriticalError(String message) {
-        if (timer != null && timer.getStatus() == Animation.Status.RUNNING) timer.stop();
-        timerWasRunningBeforeAlert = false;
+        if (timer != null) timer.stop();
+        isPaused = true;
         gameFinished = true;
         if(answerField != null) answerField.setDisable(true);
 
@@ -1041,7 +1147,7 @@ public class GameFrame {
                     "Błąd krytyczny",
                     "Wystąpił poważny błąd!",
                     message + "\n\nAplikacja może wymagać ponownego uruchomienia lub powrotu do ustawień.",
-                    Duration.seconds(10),
+                    Duration.seconds(30),
                     returnButton, closeButton
             );
 
@@ -1055,17 +1161,18 @@ public class GameFrame {
 
     public void show() {
         if (stage != null) {
-            if (mainPane == null || !uiInitialized) {
+            if (rootStackPane == null || !uiInitialized) {
+                initUI();
                 initializeGameContent();
             }
 
             Scene currentScene = stage.getScene();
             if (currentScene == null) {
-                Scene newScene = new Scene(mainPane, stage.getWidth(), stage.getHeight());
+                Scene newScene = new Scene(rootStackPane, stage.getWidth(), stage.getHeight());
                 stage.setScene(newScene);
                 applyStylesheets();
-            } else if (currentScene.getRoot() != mainPane) {
-                currentScene.setRoot(mainPane);
+            } else if (currentScene.getRoot() != rootStackPane) {
+                currentScene.setRoot(rootStackPane);
                 applyStylesheets();
             } else {
                 applyStylesheets();

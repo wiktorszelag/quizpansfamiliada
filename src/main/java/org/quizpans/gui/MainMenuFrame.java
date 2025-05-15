@@ -22,20 +22,28 @@ import javafx.scene.paint.LinearGradient;
 import javafx.scene.paint.Stop;
 import javafx.stage.Stage;
 import javafx.util.Duration;
-
+// Usunięto BackgroundLoader
 import java.io.InputStream;
+import java.util.Set;
 
 public class MainMenuFrame {
 
     private Stage stage;
     private VBox rootPane;
+    private Set<String> availableCategories;
 
-    public MainMenuFrame(Stage primaryStage) {
+    public MainMenuFrame(Stage primaryStage, Set<String> availableCategories) {
         this.stage = primaryStage;
+        this.availableCategories = availableCategories;
         this.stage.setTitle("Quizpans - Menu Główne");
         setApplicationIcon();
         initializeMainMenu();
     }
+
+    public MainMenuFrame(Stage primaryStage) {
+        this(primaryStage, null);
+    }
+
 
     private void setApplicationIcon() {
         try {
@@ -50,7 +58,9 @@ public class MainMenuFrame {
                 stage.getIcons().add(appIcon);
             }
             logoStream.close();
-        } catch (Exception e) {}
+        } catch (Exception e) {
+            System.err.println("Błąd ładowania ikony: " + e.getMessage());
+        }
     }
 
     private void initializeMainMenu() {
@@ -77,13 +87,16 @@ public class MainMenuFrame {
         onlineGameButton.setOnAction(e -> showFeatureNotAvailableAlert("Tryb Online"));
         onlineGameButton.setDisable(true);
 
+        Button gameSettingsButton = createMenuButton("Ustawienia");
+        gameSettingsButton.setOnAction(e -> switchToGameSettingsView());
+
         Button aboutButton = createMenuButton("O Quizpans");
         aboutButton.setOnAction(e -> switchToAboutView());
 
         Button exitButton = createMenuButton("Zakończ Grę");
         exitButton.setOnAction(e -> Platform.exit());
 
-        VBox buttonBox = new VBox(20, localGameButton, onlineGameButton, aboutButton, exitButton);
+        VBox buttonBox = new VBox(20, localGameButton, onlineGameButton, gameSettingsButton, aboutButton, exitButton);
         buttonBox.setAlignment(Pos.CENTER);
         buttonBox.setMaxWidth(400);
 
@@ -102,17 +115,34 @@ public class MainMenuFrame {
     private void switchToView(Parent newRoot) {
         Scene currentScene = this.stage.getScene();
         if (currentScene == null) {
-            System.err.println("MainMenuFrame.switchToView: Stage has no scene!");
+            if (stage != null && newRoot != null) {
+                Scene tempScene = new Scene(newRoot);
+                try {
+                    String cssPath = getClass().getResource("/styles.css").toExternalForm();
+                    if (cssPath != null) tempScene.getStylesheets().add(cssPath);
+                } catch (Exception e) {
+                    System.err.println("Błąd ładowania CSS dla nowej sceny: " + e.getMessage());
+                }
+                stage.setScene(tempScene);
+                if (newRoot.getOpacity() == 0) {
+                    FadeTransition fadeIn = new FadeTransition(Duration.millis(300), newRoot);
+                    fadeIn.setFromValue(0.0);
+                    fadeIn.setToValue(1.0);
+                    fadeIn.play();
+                }
+            }
             return;
         }
 
         Parent currentRootNode = currentScene.getRoot();
-        if (currentRootNode == null) {
+        if (currentRootNode == null || currentRootNode == newRoot) {
             currentScene.setRoot(newRoot);
-            FadeTransition fadeIn = new FadeTransition(Duration.millis(300), newRoot);
-            fadeIn.setFromValue(0.0);
-            fadeIn.setToValue(1.0);
-            fadeIn.play();
+            if (currentRootNode == null && newRoot != null) {
+                FadeTransition fadeIn = new FadeTransition(Duration.millis(300), newRoot);
+                fadeIn.setFromValue(0.0);
+                fadeIn.setToValue(1.0);
+                fadeIn.play();
+            }
             return;
         }
 
@@ -129,11 +159,21 @@ public class MainMenuFrame {
         fadeOut.play();
     }
 
+
     private void switchToTeamSetupView() {
-        TeamSetupFrame teamSetupFrame = new TeamSetupFrame(this.stage, this::switchToMainMenuView);
+        TeamSetupFrame teamSetupFrame = new TeamSetupFrame(this.stage, this.availableCategories, this::switchToMainMenuView);
         Parent teamSetupRoot = teamSetupFrame.getRootPane();
         switchToView(teamSetupRoot);
     }
+
+    private void switchToGameSettingsView() {
+        SettingsGameFrame settingsGameFrame = new SettingsGameFrame(this::switchToMainMenuView, this.stage);
+        Parent settingsGameRoot = settingsGameFrame.getView();
+        switchToView(settingsGameRoot);
+        this.stage.setMaximized(true);
+        this.stage.setResizable(true);
+    }
+
 
     private void switchToAboutView() {
         AboutFrame aboutFrame = new AboutFrame(this::switchToMainMenuView);
@@ -154,14 +194,9 @@ public class MainMenuFrame {
         alert.setTitle("Funkcja Niedostępna");
         alert.setHeaderText(featureName + " - Już wkrótce!");
         alert.setContentText("Pracujemy nad dodaniem tej funkcji. Sprawdzaj aktualizacje!");
-        try {
-            DialogPane dialogPane = alert.getDialogPane();
-            String cssPath = getClass().getResource("/styles.css").toExternalForm();
-            if (cssPath != null && !dialogPane.getStylesheets().contains(cssPath)) {
-                dialogPane.getStylesheets().add(cssPath);
-            }
-            dialogPane.getStyleClass().add("custom-alert");
-        } catch (Exception e) {}
+        DialogPane dialogPane = alert.getDialogPane();
+        dialogPane.getStylesheets().add(getClass().getResource("/styles.css").toExternalForm());
+        dialogPane.getStyleClass().add("custom-alert");
         alert.showAndWait();
     }
 

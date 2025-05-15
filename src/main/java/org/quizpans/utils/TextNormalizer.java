@@ -3,8 +3,6 @@ package org.quizpans.utils;
 import opennlp.tools.lemmatizer.LemmatizerME;
 import opennlp.tools.lemmatizer.LemmatizerModel;
 import opennlp.tools.tokenize.SimpleTokenizer;
-// Usuniemy import dla Apache Commons Text Levenshtein, jeśli nie jest już potrzebny gdzie indziej w tej klasie
-// import org.apache.commons.text.similarity.LevenshteinDistance;
 
 import java.io.InputStream;
 import java.util.Arrays;
@@ -14,14 +12,13 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.ArrayList;
-// Usuniemy import HashSet, jeśli nie jest już tu potrzebny (był dla spellingDictionary)
-// import java.util.HashSet;
 
 public class TextNormalizer {
-    private static final LemmatizerME lemmatizer;
+    private static LemmatizerME lemmatizer = null; // Zmienione na non-final
+    private static boolean lemmatizerInitialized = false; // Flaga statusu inicjalizacji
+
     private static final Map<String, String> normalizationCacheSingleString = new ConcurrentHashMap<>();
     private static final Map<String, List<String>> normalizationCacheTokenList = new ConcurrentHashMap<>();
-    // Usunięto: private static Set<String> spellingDictionary;
 
     private static final Set<String> STOP_WORDS = Set.of(
             "ach", "aj", "albo", "ależ", "aż", "bardziej", "bardzo", "bez", "bo", "bowiem", "by", "byli", "bym", "byś", "był", "była", "było",
@@ -43,21 +40,27 @@ public class TextNormalizer {
     static {
         try (InputStream modelStream = TextNormalizer.class.getClassLoader().getResourceAsStream("opennlp-pl-ud-pdb-lemmas-1.2-2.5.0.bin")) {
             if (modelStream == null) {
-                throw new RuntimeException("Nie można znaleźć pliku modelu lematyzera: opennlp-pl-ud-pdb-lemmas-1.2-2.5.0.bin.");
+                System.err.println("Krytyczny błąd TextNormalizer: Nie można znaleźć pliku modelu lematyzera: opennlp-pl-ud-pdb-lemmas-1.2-2.5.0.bin.");
+            } else {
+                LemmatizerModel model = new LemmatizerModel(modelStream);
+                lemmatizer = new LemmatizerME(model);
+                lemmatizerInitialized = true;
+                System.out.println("TextNormalizer: Lemmatizer OpenNLP załadowany poprawnie.");
             }
-            LemmatizerModel model = new LemmatizerModel(modelStream);
-            lemmatizer = new LemmatizerME(model);
-        } catch (Exception e) {
-            System.err.println("Krytyczny błąd podczas inicjalizacji lematyzera OpenNLP: " + e.getMessage());
-            throw new RuntimeException("Błąd inicjalizacji lematyzera", e);
+        } catch (Throwable e) { // Łapiemy Throwable, aby złapać też błędy inicjalizacji OpenNLP
+            System.err.println("Krytyczny błąd podczas inicjalizacji lematyzera OpenNLP w TextNormalizer: " + e.getMessage());
+            e.printStackTrace();
         }
-        // Inicjalizacja SpellCheckerService (jego blok statyczny zostanie wywołany przy pierwszym użyciu)
+
         if (!SpellCheckerService.isInitialized()) {
-            System.err.println("Ostrzeżenie: SpellCheckerService nie został poprawnie zainicjalizowany.");
+            System.err.println("Ostrzeżenie TextNormalizer: SpellCheckerService nie został poprawnie zainicjalizowany.");
         }
     }
 
-    // Usunięto metodę correctSpellingForToken, ponieważ użyjemy SpellCheckerService
+    public static boolean isLemmatizerInitialized() {
+        return lemmatizerInitialized;
+    }
+
 
     private static List<String> lemmatizeAndClean(String text, boolean removeStopWords) {
         if (text == null || text.trim().isEmpty()) {
@@ -68,24 +71,14 @@ public class TextNormalizer {
                 .replace("ł", "l").replace("ś", "s").replace("ż", "z")
                 .replace("ź", "z").replace("ć", "c").replace("ń", "n")
                 .replace("ą", "a").replace("ę", "e").replace("ó", "o")
-                // Usuwamy znaki interpunkcyjne dopiero po potencjalnej korekcie pisowni całych fraz,
-                // ale przed tokenizacją dla lematyzera, jeśli LanguageTool nie poprawił interpunkcji.
-                // Na razie zostawiamy tak, LanguageTool powinien radzić sobie z interpunkcją.
                 .replaceAll("\\s+", " ").trim();
-
-
-        // Korekta pisowni całej frazy lub słowo po słowie przez SpellCheckerService
-        // Dla uproszczenia, na razie poprawiamy słowo po słowie po tokenizacji.
-        // Lepsze byłoby przekazanie całej frazy do SpellCheckerService.correctPhrase,
-        // ale integracja tego jest bardziej złożona, jeśli chcemy precyzyjnie zamieniać fragmenty.
 
         String[] rawTokens = SimpleTokenizer.INSTANCE.tokenize(cleanedTextForTokens);
         List<String> spellingCorrectedTokens = new ArrayList<>();
 
         for (String rawToken : rawTokens) {
             if (rawToken.isEmpty()) continue;
-            // Popraw pisownię każdego tokenu
-            String correctedToken = SpellCheckerService.correctWord(rawToken.replaceAll("[^a-z0-9]", "")); // Czyścimy token przed korektą
+            String correctedToken = SpellCheckerService.correctWord(rawToken.replaceAll("[^a-z0-9żźćńółęąśŻŹĆŃÓŁĘĄŚ]", "")); // Zachowaj polskie znaki
             spellingCorrectedTokens.add(correctedToken);
         }
 
@@ -93,44 +86,68 @@ public class TextNormalizer {
             return new ArrayList<>();
         }
 
-        List<String> finalLemmas = new ArrayList<>();
-        for (String tokenToLemmatize : spellingCorrectedTokens) {
-            if (tokenToLemmatize.isEmpty()) continue;
+        List<String> finalTokens = new ArrayList<>();
+        if (lemmatizerInitialized && lemmatizer != null) {
+            try {
+                for (String tokenToLemmatize : spellingCorrectedTokens) {
+                    if (tokenToLemmatize.isEmpty()) continue;
 
-            // Lematyzacja pojedynczego, potencjalnie skorygowanego tokenu
-            String[] singleTokenArray = { tokenToLemmatize };
-            String[] tags = new String[singleTokenArray.length];
-            String[] lemmas = lemmatizer.lemmatize(singleTokenArray, tags);
+                    String[] singleTokenArray = { tokenToLemmatize };
+                    // Tagi POS nie są tu używane, ale metoda ich wymaga; można przekazać puste
+                    String[] tags = new String[singleTokenArray.length];
+                    String[] lemmas = lemmatizer.lemmatize(singleTokenArray, tags);
 
-            String currentLemma = (lemmas != null && lemmas.length > 0 && lemmas[0] != null) ?
-                    lemmas[0].replaceAll("[^a-z0-9]", "") : "";
+                    // Sprawdź, czy wynik lematyzacji nie jest "O" (oznaczenie OpenNLP dla nieznanych/błędnych)
+                    // i czy nie jest pusty
+                    String currentLemma = (lemmas != null && lemmas.length > 0 && lemmas[0] != null && !lemmas[0].equals("O")) ?
+                            lemmas[0].replaceAll("[^a-z0-9żźćńółęąśŻŹĆŃÓŁĘĄŚ]", "") : "";
 
-            if (!currentLemma.isEmpty() && !currentLemma.equalsIgnoreCase("o")) {
-                if (removeStopWords && STOP_WORDS.contains(currentLemma.toLowerCase())) {
-                    continue;
-                }
-                finalLemmas.add(currentLemma);
-            } else if (!tokenToLemmatize.isEmpty() && !tokenToLemmatize.equalsIgnoreCase("o") && currentLemma.isEmpty()){
-                // Jeśli lematyzacja zawiodła lub dała pusty wynik, a skorygowany token nie jest pusty
-                String cleanedCorrectedToken = tokenToLemmatize.replaceAll("[^a-z0-9]", "");
-                if (!cleanedCorrectedToken.isEmpty()) {
-                    if (removeStopWords && STOP_WORDS.contains(cleanedCorrectedToken.toLowerCase())) {
-                        continue;
+                    if (!currentLemma.isEmpty()) {
+                        if (removeStopWords && STOP_WORDS.contains(currentLemma.toLowerCase())) {
+                            continue;
+                        }
+                        finalTokens.add(currentLemma);
+                    } else if (!tokenToLemmatize.isEmpty()){ // Jeśli lema pusta, ale token nie, użyj tokenu
+                        String cleanedCorrectedToken = tokenToLemmatize.replaceAll("[^a-z0-9żźćńółęąśŻŹĆŃÓŁĘĄŚ]", "");
+                        if (!cleanedCorrectedToken.isEmpty()) {
+                            if (removeStopWords && STOP_WORDS.contains(cleanedCorrectedToken.toLowerCase())) {
+                                continue;
+                            }
+                            finalTokens.add(cleanedCorrectedToken);
+                        }
                     }
-                    finalLemmas.add(cleanedCorrectedToken);
+                }
+            } catch (Exception e) {
+                System.err.println("Błąd podczas lematyzacji w TextNormalizer (lemmatizer.lemmatize): " + e.getMessage() + " dla tekstu: " + text + ". Używanie tokenów bez lematyzacji.");
+                // W przypadku błędu, użyj tokenów po korekcie pisowni i podstawowym czyszczeniu jako fallback
+                finalTokens.clear();
+                for (String token : spellingCorrectedTokens) {
+                    String cleanedToken = token.replaceAll("[^a-z0-9żźćńółęąśŻŹĆŃÓŁĘĄŚ]", "");
+                    if (!cleanedToken.isEmpty()) {
+                        if (removeStopWords && STOP_WORDS.contains(cleanedToken.toLowerCase())) continue;
+                        finalTokens.add(cleanedToken);
+                    }
+                }
+            }
+        } else {
+            System.err.println("TextNormalizer: Lemmatizer nie jest zainicjalizowany. Używanie tokenów bez lematyzacji.");
+            for (String token : spellingCorrectedTokens) {
+                String cleanedToken = token.replaceAll("[^a-z0-9żźćńółęąśŻŹĆŃÓŁĘĄŚ]", "");
+                if (!cleanedToken.isEmpty()) {
+                    if (removeStopWords && STOP_WORDS.contains(cleanedToken.toLowerCase())) continue;
+                    finalTokens.add(cleanedToken);
                 }
             }
         }
-
-        return finalLemmas.stream().filter(s -> !s.isEmpty()).collect(Collectors.toList());
+        return finalTokens.stream().filter(s -> s != null && !s.isEmpty()).collect(Collectors.toList());
     }
 
     public static String normalizeToBaseForm(String text) {
         if (text == null || text.trim().isEmpty()) {
             return "";
         }
-        // Klucz keszowania może wymagać aktualizacji, jeśli logika spellcheckingu się zmienia
-        return normalizationCacheSingleString.computeIfAbsent(text.trim() + "_stopwords:true_spellcheck:LT", key -> {
+        String cacheKey = text.trim() + "_stopwords:true_spellcheck:LT_lemmatizer:" + lemmatizerInitialized;
+        return normalizationCacheSingleString.computeIfAbsent(cacheKey, key -> {
             List<String> lemmas = lemmatizeAndClean(text.trim(), true);
             return String.join("", lemmas);
         });
@@ -140,7 +157,7 @@ public class TextNormalizer {
         if (text == null || text.trim().isEmpty()) {
             return new ArrayList<>();
         }
-        String cacheKey = text.trim() + "_stopwords:" + removeStopWords + "_spellcheck:LT";
+        String cacheKey = text.trim() + "_stopwords:" + removeStopWords + "_spellcheck:LT_lemmatizer:" + lemmatizerInitialized;
         return normalizationCacheTokenList.computeIfAbsent(cacheKey, k ->
                 lemmatizeAndClean(text.trim(), removeStopWords)
         );

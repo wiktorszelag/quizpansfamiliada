@@ -3,9 +3,11 @@ package org.quizpans.services;
 import org.quizpans.config.DatabaseConfig;
 import org.quizpans.utils.SynonymManager;
 import org.quizpans.utils.TextNormalizer;
+import org.quizpans.utils.UsedQuestionsLogger;
 import org.apache.commons.text.similarity.LevenshteinDistance;
 import org.apache.commons.text.similarity.JaroWinklerSimilarity;
 
+import java.io.IOException;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -13,6 +15,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -20,8 +23,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Random;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 public class GameService {
     private final Map<String, Integer> answers = new LinkedHashMap<>();
@@ -31,6 +36,7 @@ public class GameService {
     private final Map<String, Set<String>> answerKeyToCombinedKeywords = new HashMap<>();
     private final String category;
     private String currentQuestion;
+    private int currentQuestionId = -1;
 
     private static final int N_GRAM_SIZE = 3;
     private static final int MIN_WORDS_FOR_KEYWORD_LOGIC = 2;
@@ -51,7 +57,11 @@ public class GameService {
 
     public GameService(String category) {
         this.category = category;
-        loadQuestion();
+        try {
+            loadQuestion();
+        } catch (RuntimeException e) {
+            throw e;
+        }
     }
 
     private static Set<String> getCharacterNGrams(String text, int n) {
@@ -75,19 +85,111 @@ public class GameService {
     }
 
     public void loadQuestion() {
-        answers.clear(); pointsMap.clear(); synonymMap.clear(); baseFormToOriginalMap.clear(); answerKeyToCombinedKeywords.clear(); currentQuestion = null;
-        String sql = "SELECT * FROM Pytania WHERE kategoria = ? ORDER BY RAND() LIMIT 1";
-        try (Connection conn = DriverManager.getConnection(DatabaseConfig.getUrl(), DatabaseConfig.getUser(), DatabaseConfig.getPassword());
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            pstmt.setString(1, this.category);
-            try (ResultSet rs = pstmt.executeQuery()) {
+        answers.clear();
+        pointsMap.clear();
+        synonymMap.clear();
+        baseFormToOriginalMap.clear();
+        answerKeyToCombinedKeywords.clear();
+        currentQuestion = null;
+        currentQuestionId = -1;
+
+        Set<Integer> usedIds = Collections.emptySet();
+        try {
+            usedIds = UsedQuestionsLogger.loadUsedQuestionIdsFromFile();
+        } catch (IOException e) {
+            System.err.println("Nie udało się wczytać użytych ID pytań z pliku: " + e.getMessage());
+        }
+
+        try (Connection conn = DriverManager.getConnection(DatabaseConfig.getUrl(), DatabaseConfig.getUser(), DatabaseConfig.getPassword())) {
+            boolean questionLoaded = tryLoadQuestion(conn, usedIds, true);
+
+            if (!questionLoaded) {
+                System.out.println("Nie znaleziono nowych pytań dla kategorii: " + category + ". Próba wylosowania spośród wszystkich pytań.");
+                questionLoaded = tryLoadQuestion(conn, Collections.emptySet(), false);
+                if (questionLoaded) {
+                    System.out.println("Wylosowano pytanie spośród wszystkich (ignorując listę użytych), ponieważ pula nowych pytań mogła się wyczerpać.");
+                }
+            }
+
+            if (!questionLoaded) {
+                currentQuestion = null;
+                System.err.println("Krytyczny błąd: Brak jakichkolwiek pytań dla kategorii: " + category);
+                throw new RuntimeException("Brak pytań dla kategorii: " + category);
+            }
+
+        } catch (SQLException e) {
+            currentQuestion = null;
+            System.err.println("Błąd SQL podczas ładowania pytania: " + e.getMessage());
+            throw new RuntimeException("Błąd SQL podczas ładowania pytania.", e);
+        } catch (Exception e) {
+            currentQuestion = null;
+            System.err.println("Inny błąd podczas ładowania pytania: " + e.getMessage());
+            if (e instanceof RuntimeException) throw (RuntimeException)e;
+            throw new RuntimeException("Inny błąd podczas ładowania pytania.", e);
+        }
+    }
+
+    private boolean tryLoadQuestion(Connection conn, Set<Integer> idsToExclude, boolean excludeModeActive) throws SQLException {
+        List<Integer> availableQuestionIds = new ArrayList<>();
+        String fetchIdsSqlBase = "SELECT id FROM Pytania WHERE kategoria = ?";
+        List<Object> paramsForFetchIds = new ArrayList<>();
+        paramsForFetchIds.add(this.category);
+
+        if (excludeModeActive && !idsToExclude.isEmpty()) {
+            String placeholders = String.join(",", Collections.nCopies(idsToExclude.size(), "?"));
+            fetchIdsSqlBase += " AND id NOT IN (" + placeholders + ")";
+            paramsForFetchIds.addAll(idsToExclude);
+        }
+
+        try (PreparedStatement pstmtIds = conn.prepareStatement(fetchIdsSqlBase)) {
+            for (int i = 0; i < paramsForFetchIds.size(); i++) {
+                pstmtIds.setObject(i + 1, paramsForFetchIds.get(i));
+            }
+            try (ResultSet rsIds = pstmtIds.executeQuery()) {
+                while (rsIds.next()) {
+                    availableQuestionIds.add(rsIds.getInt("id"));
+                }
+            }
+        }
+
+        if (availableQuestionIds.isEmpty()) {
+            return false;
+        }
+
+        int randomId = availableQuestionIds.get(new Random().nextInt(availableQuestionIds.size()));
+
+        String selectSql = "SELECT * FROM Pytania WHERE id = ?";
+        try (PreparedStatement pstmtSelect = conn.prepareStatement(selectSql)) {
+            pstmtSelect.setInt(1, randomId);
+            try (ResultSet rs = pstmtSelect.executeQuery()) {
                 if (rs.next()) {
                     currentQuestion = rs.getString("pytanie");
+                    currentQuestionId = randomId;
+
+                    if (excludeModeActive || !idsToExclude.contains(currentQuestionId)) {
+                        UsedQuestionsLogger.addUsedQuestionId(currentQuestionId);
+                    }
+
                     loadAnswers(rs);
-                } else { currentQuestion = null; System.err.println("Brak pytań dla kategorii: " + category); }
+                    return true;
+                } else {
+                    System.err.println("Błąd krytyczny: Nie znaleziono pytania o ID " + randomId + ", które powinno istnieć.");
+                    return false;
+                }
             }
-        } catch (SQLException e) { currentQuestion = null; System.err.println("Błąd SQL: " + e.getMessage()); throw new RuntimeException("Błąd SQL.", e);
-        } catch (Exception e) { currentQuestion = null; System.err.println("Inny błąd: " + e.getMessage()); throw new RuntimeException("Inny błąd.", e); }
+        }
+    }
+
+
+    private boolean hasColumn(ResultSet rs, String columnName) throws SQLException {
+        java.sql.ResultSetMetaData rsmd = rs.getMetaData();
+        int columns = rsmd.getColumnCount();
+        for (int x = 1; x <= columns; x++) {
+            if (columnName.equalsIgnoreCase(rsmd.getColumnName(x))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void loadAnswers(ResultSet rs) throws SQLException {
@@ -285,9 +387,7 @@ public class GameService {
 
                 if (correctTokensForFallback != null && correctTokensForFallback.size() == 1) {
                     String correctSingleWordKey = correctAnswerKey;
-
                     int ldFallback = levenshteinDistance.apply(userSingleWord, correctSingleWordKey);
-
                     int allowedDistanceFallback = 1;
                     if (userSingleWord.length() >= 5 || correctSingleWordKey.length() >= 5) {
                         allowedDistanceFallback = 2;
@@ -305,7 +405,6 @@ public class GameService {
                 }
             }
         }
-
         return Optional.empty();
     }
 
@@ -322,11 +421,12 @@ public class GameService {
     public int getPoints(String answerBaseForm) { return pointsMap.getOrDefault(answerBaseForm, 0); }
     public String getOriginalAnswer(String baseForm) { return baseFormToOriginalMap.getOrDefault(baseForm, baseForm); }
     public String getCurrentQuestion() { return currentQuestion; }
+    public int getCurrentQuestionId() { return currentQuestionId; }
     public String getCategory() { return category; }
     public int getTotalAnswersCount() {
         return (int) answers.keySet().stream().filter(key -> pointsMap.getOrDefault(key, 0) > 0).count();
     }
-    public void setCurrentQuestionToNull() { currentQuestion = null; answers.clear(); pointsMap.clear(); synonymMap.clear(); baseFormToOriginalMap.clear(); answerKeyToCombinedKeywords.clear();}
+    public void setCurrentQuestionToNull() { currentQuestion = null; currentQuestionId = -1; answers.clear(); pointsMap.clear(); synonymMap.clear(); baseFormToOriginalMap.clear(); answerKeyToCombinedKeywords.clear();}
 
     public static class AnswerData {
         public final String baseForm;
