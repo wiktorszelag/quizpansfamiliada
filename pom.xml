@@ -89,8 +89,7 @@
                     <include>**/*.png</include>
                     <include>**/*.css</include>
                     <include>**/*.bin</include>
-                    <include>**/*.txt</include>
-                </includes>
+                    <include>**/*.txt</include>  </includes>
             </resource>
         </resources>
 

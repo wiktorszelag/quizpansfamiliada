@@ -3,10 +3,12 @@ package org.quizpans;
 import javafx.application.Application;
 import javafx.stage.Stage;
 import org.quizpans.gui.SplashScreen;
+import org.quizpans.utils.BackgroundLoader;
 
 public class App extends Application {
     @Override
     public void start(Stage primaryStage) {
+        BackgroundLoader.ensureModelLoadingInitiated();
         SplashScreen splashScreen = new SplashScreen(primaryStage);
         splashScreen.show();
     }

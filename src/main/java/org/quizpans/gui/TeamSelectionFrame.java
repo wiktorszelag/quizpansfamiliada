@@ -12,7 +12,6 @@ import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.Button;
 import javafx.scene.control.DialogPane;
 import javafx.scene.control.Label;
-import javafx.scene.control.ProgressBar;
 import javafx.scene.effect.DropShadow;
 import javafx.scene.effect.Glow;
 import javafx.scene.image.Image;
@@ -24,6 +23,7 @@ import javafx.scene.paint.Stop;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
+import javafx.scene.text.Text;
 import javafx.scene.text.TextAlignment;
 import javafx.stage.Stage;
 import javafx.util.Duration;
@@ -44,18 +44,27 @@ public class TeamSelectionFrame {
     private GameService gameService;
     private boolean team1Starts;
     private volatile boolean loadingComplete = false;
+    private volatile boolean animationComplete = false;
 
     private Button startGameButton;
     private BorderPane mainPane;
     private boolean uiInitialized = false;
 
-    private ProgressBar progressBar;
-    private Label progressStatusLabel;
+    private StackPane customProgressBar;
+    private Rectangle progressFillRect;
+    private Text progressText;
     private VBox bottomStatusBox;
+    private Timeline fakeProgressTimeline;
+    private Task<GameService> gameLoadTask;
+
 
     private Label startingLabel;
     private Label teamDisplayLabel;
     private StackPane teamDisplayContainer;
+
+    private static final double PROGRESS_BAR_WIDTH = 250; // Szerokość zbliżona do przycisku
+    private static final double PROGRESS_BAR_HEIGHT = 50; // Wysokość zbliżona do przycisku
+
 
     public TeamSelectionFrame(String selectedCategory, int answerTime,
                               String team1Name, String team2Name,
@@ -99,23 +108,100 @@ public class TeamSelectionFrame {
         }
     }
 
-    private void bindTaskToUI(Task<?> task) {
-        if (progressBar != null && progressStatusLabel != null && task != null && bottomStatusBox != null) {
-            progressBar.setProgress(ProgressBar.INDETERMINATE_PROGRESS);
-            progressStatusLabel.textProperty().bind(task.messageProperty());
-            mainPane.setBottom(bottomStatusBox);
+    private void startLoadingVisuals() {
+        if (customProgressBar == null || progressFillRect == null || progressText == null) return;
+
+        progressFillRect.setWidth(0);
+        progressText.setText("Ładowanie...");
+        customProgressBar.setVisible(true);
+
+        final Duration expectedLoadTime = Duration.seconds(5); // Przybliżony oczekiwany czas ładowania
+
+        if (fakeProgressTimeline != null) {
+            fakeProgressTimeline.stop();
+        }
+
+        fakeProgressTimeline = new Timeline();
+        fakeProgressTimeline.getKeyFrames().add(
+                new KeyFrame(expectedLoadTime, new KeyValue(progressFillRect.widthProperty(), PROGRESS_BAR_WIDTH * 0.9)) // Do 90%
+        );
+        fakeProgressTimeline.play();
+
+        if (gameLoadTask != null) {
+            gameLoadTask.messageProperty().addListener((obs, oldMsg, newMsg) -> {
+                if (newMsg != null && !newMsg.isEmpty()) {
+                    Platform.runLater(() -> progressText.setText(newMsg));
+                }
+            });
+        }
+    }
+
+    private void completeLoadingVisuals() {
+        if (fakeProgressTimeline != null) {
+            fakeProgressTimeline.stop();
+        }
+        if (progressFillRect != null) {
+            // Animacja do pełnego wypełnienia
+            Timeline completeFill = new Timeline(
+                    new KeyFrame(Duration.millis(300), new KeyValue(progressFillRect.widthProperty(), PROGRESS_BAR_WIDTH))
+            );
+            completeFill.setOnFinished(event -> {
+                if (customProgressBar != null) customProgressBar.setVisible(false);
+                mainPane.setBottom(startGameButton); // Pokaż przycisk start
+            });
+            completeFill.play();
+        }
+        if (progressText != null) {
+            progressText.setText("Gotowe!");
+        }
+    }
+
+    private void errorLoadingVisuals(String errorMessage) {
+        if (fakeProgressTimeline != null) {
+            fakeProgressTimeline.stop();
+        }
+        if (customProgressBar != null) {
+            customProgressBar.setVisible(true); // Upewnij się, że jest widoczny, by pokazać błąd
+        }
+        if (progressFillRect != null) {
+            progressFillRect.setWidth(PROGRESS_BAR_WIDTH); // Pokaż pełny, ale np. na czerwono
+            progressFillRect.setFill(Color.INDIANRED);
+        }
+        if (progressText != null) {
+            progressText.setText("Błąd: " + errorMessage.substring(0, Math.min(errorMessage.length(), 25))+"...");
+            progressText.setFill(Color.WHITE);
+        }
+    }
+
+
+    private void bindTaskToUI() {
+        if (customProgressBar != null && bottomStatusBox != null) {
+            mainPane.setBottom(bottomStatusBox); // bottomStatusBox zawiera teraz customProgressBar
             bottomStatusBox.setVisible(true);
-            progressBar.setVisible(true);
-            progressStatusLabel.setVisible(true);
+            customProgressBar.setVisible(true);
+            startLoadingVisuals();
         }
     }
 
     private void unbindTaskFromUIAndPrepareForButton() {
-        if (progressBar != null && progressStatusLabel != null && bottomStatusBox != null ) {
-            progressStatusLabel.textProperty().unbind(); // Odłącz tylko status, progress nie był bindowany
-            progressBar.setProgress(0);
-            bottomStatusBox.setVisible(false);
-            mainPane.setBottom(startGameButton);
+        if (loadingComplete) {
+            completeLoadingVisuals();
+        } else {
+            // Jeśli ładowanie nie zostało ukończone (np. błąd), nie ukrywaj paska od razu
+            // errorLoadingVisuals() powinno być wywołane wcześniej
+        }
+    }
+
+    private synchronized void checkIfReadyToEnableStartButton() {
+        if (loadingComplete && animationComplete && startGameButton != null) {
+            if (gameService != null && gameService.getCurrentQuestion() != null) {
+                startGameButton.setDisable(false);
+            } else {
+                startGameButton.setDisable(true);
+                if (mainPane.getBottom() != bottomStatusBox || (customProgressBar != null && !customProgressBar.isVisible())) {
+                    showLoadingError("Dane gry nie zostały poprawnie załadowane, przycisk start nieaktywny.");
+                }
+            }
         }
     }
 
@@ -123,37 +209,32 @@ public class TeamSelectionFrame {
         unbindTaskFromUIAndPrepareForButton();
 
         if (!loadingComplete || gameService == null || gameService.getCurrentQuestion() == null) {
-            if (loadingComplete) {
-                showLoadingError("Dane gry nie zostały poprawnie załadowane.");
+            // showLoadingError już obsłuży wizualizację błędu
+            if (! (mainPane.getBottom() == bottomStatusBox && customProgressBar != null && customProgressBar.isVisible()) ) {
+                //  showLoadingError("Dane gry nie załadowane poprawnie."); // Unikaj podwójnego komunikatu
             }
-            mainPane.setBottom(null);
+            if (startGameButton != null) {
+                startGameButton.setDisable(true);
+            }
             return;
         }
 
         if (startGameButton != null) {
-            mainPane.setBottom(startGameButton);
+            mainPane.setBottom(startGameButton); // To zostanie zrobione w completeLoadingVisuals
             startGameButton.setVisible(true);
-            startGameButton.setDisable(false);
+            checkIfReadyToEnableStartButton();
         }
     }
 
     private void showLoadingError(String message) {
-        unbindTaskFromUIAndPrepareForButton();
-        if (progressStatusLabel != null && bottomStatusBox != null) {
-            if(progressStatusLabel.textProperty().isBound()){
-                progressStatusLabel.textProperty().unbind();
-            }
-            progressStatusLabel.setText("Błąd: " + message.substring(0, Math.min(message.length(), 60)) + "...");
-            progressStatusLabel.setTextFill(Color.RED);
-            if(progressBar != null) progressBar.setVisible(false);
+        errorLoadingVisuals(message);
+        if (bottomStatusBox != null && mainPane.getBottom() != bottomStatusBox) {
             mainPane.setBottom(bottomStatusBox);
             bottomStatusBox.setVisible(true);
-            progressStatusLabel.setVisible(true);
         }
 
         if (startGameButton != null) {
-            mainPane.setBottom(startGameButton); // Upewnij się, że jest na dole, nawet jeśli niewidoczny
-            startGameButton.setVisible(false);
+            startGameButton.setVisible(true);
             startGameButton.setDisable(true);
         }
 
@@ -171,54 +252,60 @@ public class TeamSelectionFrame {
         } catch (Exception ex) {
             System.err.println("Failed to style error alert: " + ex.getMessage());
         }
-        alert.showAndWait();
+        // alert.showAndWait(); // Może być zbyt inwazyjne, jeśli błąd jest już pokazany na pasku
     }
 
     private void initializeGameServiceStandardWithTask() {
-        Task<GameService> standardLoadTask = new Task<GameService>() {
+        gameLoadTask = new Task<GameService>() {
             @Override
             protected GameService call() throws Exception {
-                updateMessage("Inicjalizacja zasobów..."); // Obejmuje TextNormalizer itp. przy pierwszym użyciu
+                updateMessage("Inicjalizacja zasobów");
+                Platform.runLater(() -> progressText.setText("Inicjalizacja zasobów..."));
+                Thread.sleep(500); // Symulacja pracy
+
                 GameService service = null;
                 try {
                     service = new GameService(selectedCategory);
                 } catch (Exception e) {
-                    updateMessage("Błąd inicjalizacji GameService: " + e.getMessage().substring(0, Math.min(e.getMessage().length(), 30)) + "...");
+                    updateMessage("Błąd inicjalizacji");
+                    Platform.runLater(() -> progressText.setText("Błąd inicjalizacji GameService"));
                     throw e;
                 }
 
-                updateMessage("Wczytywanie pytania...");
+                updateMessage("Wczytywanie pytania");
+                Platform.runLater(() -> progressText.setText("Wczytywanie pytania..."));
+                Thread.sleep(1000); // Symulacja pracy
+
                 if (service.getCurrentQuestion() == null) {
                     throw new RuntimeException("Nie udało się załadować pytania dla kategorii: " + selectedCategory);
                 }
 
-                updateMessage("Finalizowanie...");
+                updateMessage("Finalizowanie");
+                Platform.runLater(() -> progressText.setText("Finalizowanie..."));
+                Thread.sleep(500); // Symulacja pracy
                 return service;
             }
         };
 
-        bindTaskToUI(standardLoadTask);
+        bindTaskToUI();
 
-        standardLoadTask.setOnSucceeded(workerStateEvent -> {
-            unbindTaskFromUIAndPrepareForButton();
-            this.gameService = standardLoadTask.getValue();
+        gameLoadTask.setOnSucceeded(workerStateEvent -> {
+            this.gameService = gameLoadTask.getValue();
             this.loadingComplete = (this.gameService != null && this.gameService.getCurrentQuestion() != null);
-            if (this.loadingComplete) {
-                Platform.runLater(this::updateUIOnLoadComplete);
-            } else {
-                showLoadingError("Nie udało się wczytać danych gry (standardowe ładowanie).");
-            }
+            Platform.runLater(this::updateUIOnLoadComplete);
         });
 
-        standardLoadTask.setOnFailed(workerStateEvent -> {
-            unbindTaskFromUIAndPrepareForButton();
-            Throwable exception = standardLoadTask.getException();
+        gameLoadTask.setOnFailed(workerStateEvent -> {
+            Throwable exception = gameLoadTask.getException();
             if (exception != null) exception.printStackTrace();
             this.loadingComplete = false;
-            Platform.runLater(() -> showLoadingError("Błąd podczas standardowego ładowania gry: " + (exception != null ? exception.getMessage() : "Nieznany błąd")));
+            Platform.runLater(() -> {
+                showLoadingError("Błąd ładowania gry" + (exception != null ? "" : ""));
+                updateUIOnLoadComplete(); // Aby ukryć/zmienić pasek postępu
+            });
         });
 
-        Thread thread = new Thread(standardLoadTask);
+        Thread thread = new Thread(gameLoadTask);
         thread.setDaemon(true);
         thread.start();
     }
@@ -319,26 +406,30 @@ public class TeamSelectionFrame {
         mainPane.setCenter(centerPanel);
         BorderPane.setMargin(centerPanel, new Insets(0,10,0,10));
 
-        progressBar = new ProgressBar(ProgressBar.INDETERMINATE_PROGRESS);
-        progressBar.setPrefWidth(350);
-        progressBar.setMinHeight(25);
-        progressBar.setStyle(
-                "-fx-accent: #29b6f6; " +
-                        "-fx-control-inner-background: rgba(0,0,0,0.3); " +
-                        "-fx-border-radius: 15px; " +
-                        "-fx-background-radius: 15px;" +
-                        "-fx-padding: 1px;" +
-                        "-fx-border-color: rgba(255,255,255,0.2);" +
-                        "-fx-border-width: 1px;"
-        );
-        progressBar.getStyleClass().add("progress-bar-custom");
+        Rectangle progressBackgroundRect = new Rectangle(PROGRESS_BAR_WIDTH, PROGRESS_BAR_HEIGHT);
+        progressBackgroundRect.setArcWidth(30);
+        progressBackgroundRect.setArcHeight(30);
+        progressBackgroundRect.setFill(Color.rgb(0, 0, 0, 0.3));
+        progressBackgroundRect.setStroke(Color.rgb(255,255,255,0.2));
+        progressBackgroundRect.setStrokeWidth(1.5);
 
-        progressStatusLabel = new Label("Ładowanie...");
-        progressStatusLabel.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 16));
-        progressStatusLabel.setTextFill(Color.WHITE);
-        progressStatusLabel.setPadding(new Insets(5,0,0,0));
+        progressFillRect = new Rectangle(0, PROGRESS_BAR_HEIGHT);
+        progressFillRect.setArcWidth(30);
+        progressFillRect.setArcHeight(30);
+        progressFillRect.setFill(Color.LIGHTSKYBLUE);
 
-        bottomStatusBox = new VBox(5, progressStatusLabel, progressBar);
+        progressText = new Text("Ładowanie...");
+        progressText.setFont(Font.font("Segoe UI", FontWeight.BOLD, 16));
+        progressText.setFill(Color.WHITE);
+
+        customProgressBar = new StackPane(progressBackgroundRect, progressFillRect, progressText);
+        customProgressBar.setPrefSize(PROGRESS_BAR_WIDTH, PROGRESS_BAR_HEIGHT);
+        customProgressBar.setMaxSize(PROGRESS_BAR_WIDTH, PROGRESS_BAR_HEIGHT);
+        StackPane.setAlignment(progressFillRect, Pos.CENTER_LEFT); // Kluczowe dla wypełniania od lewej
+        customProgressBar.setVisible(false);
+
+
+        bottomStatusBox = new VBox(5, customProgressBar);
         bottomStatusBox.setAlignment(Pos.CENTER);
         bottomStatusBox.setPadding(new Insets(10,0,20,0));
         bottomStatusBox.setVisible(true);
@@ -346,21 +437,29 @@ public class TeamSelectionFrame {
         startGameButton = new Button("Rozpocznij grę");
         startGameButton.setFont(Font.font("Segoe UI", FontWeight.BOLD, 22));
         startGameButton.setTextFill(Color.WHITE);
+        // Styl przycisku, można go dostosować, aby pasował do PROGRESS_BAR_WIDTH i PROGRESS_BAR_HEIGHT
         startGameButton.setStyle(
                 "-fx-background-color: linear-gradient(from 0% 0% to 100% 100%, #4CAF50, #388E3C);" +
-                        "-fx-background-radius: 30;" +
-                        "-fx-padding: 18 35 18 35;" +
+                        "-fx-background-radius: 30;" + // Pasuje do arcWidth/arcHeight paska
+                        "-fx-min-width: " + PROGRESS_BAR_WIDTH + "px;" +
+                        "-fx-pref-width: " + PROGRESS_BAR_WIDTH + "px;" +
+                        "-fx-min-height: " + PROGRESS_BAR_HEIGHT + "px;" +
+                        "-fx-pref-height: " + PROGRESS_BAR_HEIGHT + "px;" +
+                        "-fx-padding: 0;" + // Usunięty padding, aby tekst był centralnie jeśli trzeba
                         "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.4), 10, 0.5, 0, 2);"
         );
-        startGameButton.setOnMouseEntered(e -> startGameButton.setStyle(
-                "-fx-background-color: linear-gradient(from 0% 0% to 100% 100%, #66BB6A, #4CAF50);" +
-                        "-fx-background-radius: 30; -fx-padding: 18 35 18 35; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.6), 15, 0.6, 0, 3);"
-        ));
-        startGameButton.setOnMouseExited(e -> startGameButton.setStyle(
-                "-fx-background-color: linear-gradient(from 0% 0% to 100% 100%, #4CAF50, #388E3C);" +
-                        "-fx-background-radius: 30; -fx-padding: 18 35 18 35; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.4), 10, 0.5, 0, 2);"
-        ));
-        startGameButton.setVisible(false);
+        startGameButton.setOnMouseEntered(e -> {
+            String currentStyle = startGameButton.getStyle();
+            startGameButton.setStyle(currentStyle.replace("linear-gradient(from 0% 0% to 100% 100%, #4CAF50, #388E3C)", "linear-gradient(from 0% 0% to 100% 100%, #66BB6A, #4CAF50)")
+                    .replace("dropshadow(gaussian, rgba(0,0,0,0.4), 10, 0.5, 0, 2)", "dropshadow(gaussian, rgba(0,0,0,0.6), 15, 0.6, 0, 3)"));
+        });
+        startGameButton.setOnMouseExited(e -> {
+            String currentStyle = startGameButton.getStyle();
+            startGameButton.setStyle(currentStyle.replace("linear-gradient(from 0% 0% to 100% 100%, #66BB6A, #4CAF50)", "linear-gradient(from 0% 0% to 100% 100%, #4CAF50, #388E3C)")
+                    .replace("dropshadow(gaussian, rgba(0,0,0,0.6), 15, 0.6, 0, 3)", "dropshadow(gaussian, rgba(0,0,0,0.4), 10, 0.5, 0, 2)"));
+        });
+
+        startGameButton.setVisible(true);
         startGameButton.setDisable(true);
         startGameButton.setOnAction(e -> proceedToGame());
 
@@ -439,6 +538,11 @@ public class TeamSelectionFrame {
     private void startSelectionAnimation() {
         if (startingLabel == null || teamDisplayLabel == null) return;
 
+        animationComplete = false;
+        if (startGameButton != null) {
+            startGameButton.setDisable(true);
+        }
+
         startingLabel.setVisible(false);
         teamDisplayLabel.setOpacity(0);
         teamDisplayLabel.setVisible(true);
@@ -468,7 +572,6 @@ public class TeamSelectionFrame {
             ParallelTransition outTransition = new ParallelTransition(fadeOut, scaleDown);
 
             sequentialTransition.getChildren().add(outTransition);
-
             sequentialTransition.getChildren().add(new PauseTransition(pauseDuration));
 
             FadeTransition fadeIn = new FadeTransition(Duration.millis(50), teamDisplayLabel);
@@ -521,7 +624,11 @@ public class TeamSelectionFrame {
             );
 
             ParallelTransition finalRevealEffects = new ParallelTransition(fadeInStartingLabel, finalScale);
-            finalRevealEffects.setOnFinished(e -> finalGlowTimeline.play());
+            finalRevealEffects.setOnFinished(e -> {
+                finalGlowTimeline.play();
+                animationComplete = true;
+                Platform.runLater(this::checkIfReadyToEnableStartButton);
+            });
             finalRevealEffects.play();
         });
 
@@ -530,7 +637,7 @@ public class TeamSelectionFrame {
 
     private void proceedToGame() {
         if (!loadingComplete) {
-            showLoadingError("Gra nie jest jeszcze gotowa.");
+            // showLoadingError("Gra nie jest jeszcze gotowa."); // Komunikat może być zbędny, bo przycisk jest nieaktywny
             return;
         }
 

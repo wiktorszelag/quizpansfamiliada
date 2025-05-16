@@ -217,14 +217,14 @@ public class GameFrame {
         gameContentPane.setTop(topPanel); BorderPane.setMargin(topPanel, new Insets(20, 0, 20, 0));
 
         GridPane centerContainer = new GridPane(); centerContainer.setAlignment(Pos.CENTER); centerContainer.setHgap(15);
-        ColumnConstraints col1=new ColumnConstraints(); col1.setPercentWidth(15); col1.setHalignment(HPos.CENTER);
-        ColumnConstraints col2=new ColumnConstraints(); col2.setPercentWidth(70); col2.setHalignment(HPos.CENTER);
-        ColumnConstraints col3=new ColumnConstraints(); col3.setPercentWidth(15); col3.setHalignment(HPos.CENTER);
+        ColumnConstraints col1=new ColumnConstraints(); col1.setPercentWidth(10); col1.setHalignment(HPos.CENTER);
+        ColumnConstraints col2=new ColumnConstraints(); col2.setPercentWidth(80); col2.setHalignment(HPos.CENTER);
+        ColumnConstraints col3=new ColumnConstraints(); col3.setPercentWidth(10); col3.setHalignment(HPos.CENTER);
         centerContainer.getColumnConstraints().addAll(col1, col2, col3);
         StackPane leftErrorPane = new StackPane(team1ErrorsPanel); leftErrorPane.setAlignment(Pos.CENTER);
         StackPane rightErrorPane = new StackPane(team2ErrorsPanel); rightErrorPane.setAlignment(Pos.CENTER);
-        VBox answersPanel = new VBox(15); answersPanel.setAlignment(Pos.CENTER);
-        answersPanel.setPadding(new Insets(20)); answersPanel.getStyleClass().add("answer-panel");
+        VBox answersPanel = new VBox(10); answersPanel.setAlignment(Pos.CENTER); // Zmniejszono nieco VBox spacing
+        answersPanel.setPadding(new Insets(10)); answersPanel.getStyleClass().add("answer-panel"); // Zmniejszono nieco padding
         for (int i = 0; i < 6; i++) { answerPanes[i] = createAnswerPane(i + 1); answersPanel.getChildren().add(answerPanes[i]); }
         centerContainer.add(leftErrorPane, 0, 0); centerContainer.add(answersPanel, 1, 0); centerContainer.add(rightErrorPane, 2, 0);
         gameContentPane.setCenter(centerContainer);
@@ -429,19 +429,39 @@ public class GameFrame {
     }
 
     private BorderPane createAnswerPane(int number) {
-        BorderPane pane = new BorderPane(); pane.getStyleClass().add("answer-pane");
+        BorderPane pane = new BorderPane();
+        pane.getStyleClass().add("answer-pane");
+        pane.setPrefHeight(70); // Zwiększona preferowana wysokość wiersza
+        pane.setPadding(new Insets(10, 15, 10, 15)); // Dodany wewnętrzny padding
+
         Label placeholderLabel = new Label(number + ". " + HIDDEN_ANSWER_PLACEHOLDER);
-        placeholderLabel.setTextOverrun(OverrunStyle.CLIP); placeholderLabel.getStyleClass().addAll("answer-text-label", "hidden");
-        pane.setCenter(placeholderLabel); BorderPane.setAlignment(placeholderLabel, Pos.CENTER_LEFT);
+        placeholderLabel.setFont(Font.font("Arial", FontWeight.NORMAL, 24)); // Zwiększona czcionka
+        placeholderLabel.setTextOverrun(OverrunStyle.CLIP);
+        placeholderLabel.getStyleClass().addAll("answer-text-label", "hidden");
+        placeholderLabel.setMaxHeight(Double.MAX_VALUE);
+
+        pane.setCenter(placeholderLabel);
+        BorderPane.setAlignment(placeholderLabel, Pos.CENTER_LEFT);
         return pane;
     }
 
     private void resetAnswerPane(int index) {
         if (index < 0 || index >= answerPanes.length || answerPanes[index] == null) { return; }
-        BorderPane pane = answerPanes[index]; pane.getStyleClass().remove("answer-revealed");
+        BorderPane pane = answerPanes[index];
+        pane.getStyleClass().remove("answer-revealed");
+        pane.setPrefHeight(70); // Upewnij się, że wysokość jest spójna
+        pane.setPadding(new Insets(10, 15, 10, 15)); // Upewnij się, że padding jest spójny
+
         Label placeholderLabel = new Label((index + 1) + ". " + HIDDEN_ANSWER_PLACEHOLDER);
-        placeholderLabel.setTextOverrun(OverrunStyle.CLIP); placeholderLabel.getStyleClass().clear(); placeholderLabel.getStyleClass().addAll("answer-text-label", "hidden");
-        pane.setCenter(placeholderLabel); pane.setRight(null); BorderPane.setAlignment(placeholderLabel, Pos.CENTER_LEFT);
+        placeholderLabel.setFont(Font.font("Arial", FontWeight.NORMAL, 24)); // Spójna czcionka
+        placeholderLabel.setTextOverrun(OverrunStyle.CLIP);
+        placeholderLabel.getStyleClass().clear();
+        placeholderLabel.getStyleClass().addAll("answer-text-label", "hidden");
+        placeholderLabel.setMaxHeight(Double.MAX_VALUE);
+
+        pane.setCenter(placeholderLabel);
+        pane.setRight(null);
+        BorderPane.setAlignment(placeholderLabel, Pos.CENTER_LEFT);
     }
 
     private void startTimer() {
@@ -609,16 +629,34 @@ public class GameFrame {
             return;
         }
         revealedAnswerBaseFormsInRound.add(answerBaseForm);
-        String originalAnswer = gameService.getOriginalAnswer(answerBaseForm); String answerToDisplay = capitalizeFirstLetter(originalAnswer);
-        BorderPane pane = answerPanes[position]; pane.getStyleClass().add("answer-revealed");
+        String originalAnswer = gameService.getOriginalAnswer(answerBaseForm);
+        String answerToDisplay = capitalizeFirstLetter(originalAnswer);
+
+        BorderPane pane = answerPanes[position];
+        pane.getStyleClass().add("answer-revealed");
+        pane.setPrefHeight(70); // Spójna wysokość
+        pane.setPadding(new Insets(10, 15, 10, 15)); // Spójny padding
+
         Label answerTextLabel = new Label((position + 1) + ". " + answerToDisplay);
+        answerTextLabel.setFont(Font.font("Arial", FontWeight.BOLD, 26)); // Zwiększona czcionka dla odkrytej odpowiedzi
         answerTextLabel.getStyleClass().setAll("answer-text-label", "revealed");
+        answerTextLabel.setMaxHeight(Double.MAX_VALUE);
+
         Label pointsLabel = new Label(points + " pkt");
+        pointsLabel.setFont(Font.font("Arial", FontWeight.BOLD, 24)); // Zwiększona czcionka dla punktów
         pointsLabel.getStyleClass().setAll("points-label", "revealed");
-        pane.setCenter(answerTextLabel); pane.setRight(pointsLabel);
-        BorderPane.setAlignment(answerTextLabel, Pos.CENTER_LEFT); BorderPane.setAlignment(pointsLabel, Pos.CENTER_RIGHT);
+        pointsLabel.setMaxHeight(Double.MAX_VALUE);
+
+        pane.setCenter(answerTextLabel);
+        pane.setRight(pointsLabel);
+        BorderPane.setAlignment(answerTextLabel, Pos.CENTER_LEFT);
+        BorderPane.setAlignment(pointsLabel, Pos.CENTER_RIGHT);
         BorderPane.setMargin(pointsLabel, new Insets(0, 10, 0, 10));
-        FadeTransition ft = new FadeTransition(Duration.millis(400), pane); ft.setFromValue(0.3); ft.setToValue(1.0); ft.play();
+
+        FadeTransition ft = new FadeTransition(Duration.millis(400), pane);
+        ft.setFromValue(0.3);
+        ft.setToValue(1.0);
+        ft.play();
     }
 
     private void registerError() {

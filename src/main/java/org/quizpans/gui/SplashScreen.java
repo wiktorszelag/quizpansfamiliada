@@ -1,7 +1,10 @@
 package org.quizpans.gui;
 
 import javafx.animation.FadeTransition;
+import javafx.animation.KeyFrame;
+import javafx.animation.KeyValue;
 import javafx.animation.ScaleTransition;
+import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.concurrent.Worker;
@@ -13,7 +16,6 @@ import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.DialogPane;
 import javafx.scene.control.Label;
-import javafx.scene.control.ProgressBar;
 import javafx.scene.layout.Background;
 import javafx.scene.layout.BackgroundFill;
 import javafx.scene.layout.CornerRadii;
@@ -25,8 +27,10 @@ import javafx.scene.paint.Color;
 import javafx.scene.paint.CycleMethod;
 import javafx.scene.paint.LinearGradient;
 import javafx.scene.paint.Stop;
+import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
+import javafx.scene.text.Text;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 import org.quizpans.config.DatabaseConfig;
@@ -36,7 +40,6 @@ import org.quizpans.utils.BackgroundLoader;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
-import java.util.Collections;
 import java.util.Set;
 
 public class SplashScreen {
@@ -48,9 +51,26 @@ public class SplashScreen {
     private Button startButton;
     private Task<Boolean> dbCheckTask;
     private Task<Set<String>> categoryLoadTask;
-    private ProgressBar initialLoadProgressBar;
-    private StackPane bottomContainer;
     private Set<String> loadedCategories = null;
+
+    private StackPane customProgressBar;
+    private Rectangle progressFillRect;
+    private Text progressText;
+    private StackPane bottomContainer;
+    private Timeline fakeProgressTimeline;
+
+    private static final double PROGRESS_BAR_WIDTH = 250;
+    private static final double PROGRESS_BAR_HEIGHT = 50;
+    private static final Color LOADING_GREEN_COLOR = Color.rgb(76, 175, 80);
+    private static final Color ERROR_RED_COLOR = Color.INDIANRED;
+
+    private boolean dbCheckCompleted = false;
+    private boolean categoriesLoadCompleted = false;
+    private boolean modelsLoadCompleted = false;
+    private boolean dbCheckFailed = false;
+    private boolean categoriesLoadFailed = false;
+    private boolean modelsLoadFailed = false;
+
 
     public SplashScreen(Stage primaryStage) {
         this.stage = primaryStage;
@@ -78,22 +98,21 @@ public class SplashScreen {
         statusLabel.setTextFill(Color.LIGHTGRAY);
         statusLabel.setFont(Font.font("System", FontWeight.NORMAL, 14));
         statusLabel.getStyleClass().add("splash-status-label");
-        VBox.setMargin(statusLabel, new Insets(5, 0, 0, 0));
+        VBox.setMargin(statusLabel, new Insets(10, 0, 0, 0));
 
         startButton = new Button("Rozpocznij");
         startButton.getStyleClass().add("main-menu-button");
-        startButton.setStyle("-fx-font-size: 18px; -fx-pref-width: 200px; -fx-min-width: 200px; -fx-padding: 10px 20px;");
+        startButton.setStyle("-fx-font-size: 18px; -fx-pref-width: " + PROGRESS_BAR_WIDTH + "px; -fx-min-width: " + PROGRESS_BAR_WIDTH + "px; -fx-pref-height:" + PROGRESS_BAR_HEIGHT + "px; -fx-min-height:" + PROGRESS_BAR_HEIGHT + "px; -fx-padding: 10px 20px;");
         startButton.setDisable(true);
         startButton.setOnAction(e -> handleStartButtonClick());
+        startButton.setVisible(false);
 
-        initialLoadProgressBar = new ProgressBar();
-        initialLoadProgressBar.setPrefWidth(250);
-        initialLoadProgressBar.setVisible(false);
+        createCustomProgressBar();
 
-        bottomContainer = new StackPane(startButton, initialLoadProgressBar);
+        bottomContainer = new StackPane(customProgressBar, startButton);
         StackPane.setAlignment(startButton, Pos.CENTER);
-        StackPane.setAlignment(initialLoadProgressBar, Pos.CENTER);
-        VBox.setMargin(bottomContainer, new Insets(0, 0, 10, 0));
+        StackPane.setAlignment(customProgressBar, Pos.CENTER);
+        VBox.setMargin(bottomContainer, new Insets(0, 0, 0, 0));
 
         Region spacerTop = new Region();
         VBox.setVgrow(spacerTop, Priority.ALWAYS);
@@ -116,8 +135,187 @@ public class SplashScreen {
         this.stage.setMaximized(true);
         this.stage.setResizable(true);
 
-        checkDatabaseConnectionAndLoadCategories();
+        startInitialLoad();
+
+        BackgroundLoader.modelsLoadingCompleteProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal) {
+                modelsLoadCompleted = true;
+                modelsLoadFailed = false;
+                Platform.runLater(this::updateCombinedProgress);
+            }
+        });
+        BackgroundLoader.modelsLoadingFailedProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal) {
+                modelsLoadFailed = true;
+                modelsLoadCompleted = false;
+                Platform.runLater(() -> {
+                    progressText.setText("Błąd ładowania modeli!");
+                    checkAndFinalizeLoading();
+                });
+            }
+        });
     }
+
+    private void createCustomProgressBar() {
+        Rectangle progressBackgroundRect = new Rectangle(PROGRESS_BAR_WIDTH, PROGRESS_BAR_HEIGHT);
+        progressBackgroundRect.setArcWidth(30);
+        progressBackgroundRect.setArcHeight(30);
+        progressBackgroundRect.setFill(Color.rgb(0, 0, 0, 0.3));
+        progressBackgroundRect.setStroke(Color.rgb(255,255,255,0.2));
+        progressBackgroundRect.setStrokeWidth(1.5);
+
+        progressFillRect = new Rectangle(0, PROGRESS_BAR_HEIGHT);
+        progressFillRect.setArcWidth(30);
+        progressFillRect.setArcHeight(30);
+        progressFillRect.setFill(LOADING_GREEN_COLOR);
+
+        progressText = new Text("Ładowanie...");
+        progressText.setFont(Font.font("Segoe UI", FontWeight.BOLD, 16));
+        progressText.setFill(Color.WHITE);
+
+        customProgressBar = new StackPane(progressBackgroundRect, progressFillRect, progressText);
+        customProgressBar.setPrefSize(PROGRESS_BAR_WIDTH, PROGRESS_BAR_HEIGHT);
+        customProgressBar.setMaxSize(PROGRESS_BAR_WIDTH, PROGRESS_BAR_HEIGHT);
+        StackPane.setAlignment(progressFillRect, Pos.CENTER_LEFT);
+        customProgressBar.setVisible(false);
+    }
+
+
+    private void startInitialLoad() {
+        customProgressBar.setVisible(true);
+        startButton.setVisible(false);
+        progressFillRect.setWidth(0);
+        progressFillRect.setFill(LOADING_GREEN_COLOR);
+        progressText.setText("Startowanie...");
+        statusLabel.setText(" ");
+        statusLabel.setTextFill(Color.LIGHTGRAY);
+
+
+        checkDatabaseConnection();
+    }
+
+    private void setBottomStatus(String message, Color color) {
+        Platform.runLater(() -> {
+            statusLabel.setText(message);
+            statusLabel.setTextFill(color);
+        });
+    }
+
+
+    private void updateCombinedProgress() {
+        double totalTasks = 3.0;
+        double completedTasks = 0;
+
+        if (dbCheckCompleted && !dbCheckFailed) completedTasks++;
+        if (categoriesLoadCompleted && !categoriesLoadFailed) completedTasks++;
+        if (modelsLoadCompleted && !modelsLoadFailed) completedTasks++;
+
+        double currentProgress = completedTasks / totalTasks;
+        if (fakeProgressTimeline != null) {
+            fakeProgressTimeline.stop();
+        }
+
+        fakeProgressTimeline = new Timeline();
+        fakeProgressTimeline.getKeyFrames().add(
+                new KeyFrame(Duration.millis(500), new KeyValue(progressFillRect.widthProperty(), PROGRESS_BAR_WIDTH * currentProgress))
+        );
+        fakeProgressTimeline.play();
+
+        String currentProgressMessage = "";
+        boolean anErrorOccurred = dbCheckFailed || categoriesLoadFailed || modelsLoadFailed;
+
+        statusLabel.setText(" ");
+
+        if (anErrorOccurred) {
+            progressFillRect.setFill(ERROR_RED_COLOR);
+            if (progressFillRect.getWidth() < PROGRESS_BAR_WIDTH *0.33){
+                progressFillRect.setWidth(PROGRESS_BAR_WIDTH *0.33);
+            }
+            if (dbCheckFailed && (progressText.getText() == null || !progressText.getText().contains("Baza"))) currentProgressMessage = "Błąd Bazy Danych!";
+            else if (categoriesLoadFailed && (progressText.getText() == null || !progressText.getText().contains("Kategorie"))) currentProgressMessage = "Błąd Kategorii!";
+            else if (modelsLoadFailed && (progressText.getText() == null || !progressText.getText().contains("Modele"))) currentProgressMessage = "Błąd Modeli!";
+            else if (progressText.getText() == null || progressText.getText().isEmpty() || progressText.getText().equals("Startowanie...") || progressText.getText().equals("Ładowanie kategorii...") || progressText.getText().equals("Ładowanie modeli...") || progressText.getText().equals("Baza danych OK.") || progressText.getText().equals("Kategorie załadowane.")) {
+                currentProgressMessage = "Błąd ładowania!";
+            }
+
+
+            if(!currentProgressMessage.isEmpty()) progressText.setText(currentProgressMessage);
+
+        } else if (currentProgress < 1.0) {
+            progressFillRect.setFill(LOADING_GREEN_COLOR);
+            if (dbCheckCompleted && !categoriesLoadCompleted && !categoriesLoadFailed) {
+                currentProgressMessage = "Ładowanie kategorii...";
+            } else if (dbCheckCompleted && categoriesLoadCompleted && !modelsLoadCompleted && !modelsLoadFailed) {
+                currentProgressMessage = "Ładowanie modeli...";
+            } else if (!dbCheckCompleted){
+                currentProgressMessage = "Sprawdzanie bazy...";
+            }
+            else {
+                currentProgressMessage = "Finalizowanie...";
+            }
+            progressText.setText(currentProgressMessage);
+        } else {
+            progressFillRect.setFill(LOADING_GREEN_COLOR);
+            progressText.setText("Kończenie...");
+        }
+        checkAndFinalizeLoading();
+    }
+
+
+    private void checkAndFinalizeLoading() {
+        boolean allDone = dbCheckCompleted && categoriesLoadCompleted && modelsLoadCompleted;
+        boolean anyFailed = dbCheckFailed || categoriesLoadFailed || modelsLoadFailed;
+
+        if (allDone && !anyFailed) {
+            completeLoadingVisuals("Gotowy do startu!");
+            startButton.setDisable(false);
+        } else if (anyFailed) {
+            String finalErrorMsgInProgressBar = progressText.getText();
+            if (finalErrorMsgInProgressBar == null || finalErrorMsgInProgressBar.isEmpty() ||
+                    !(finalErrorMsgInProgressBar.toLowerCase().contains("błąd") || finalErrorMsgInProgressBar.toLowerCase().contains("error"))) {
+                if(dbCheckFailed) finalErrorMsgInProgressBar = "Błąd Bazy Danych!";
+                else if(categoriesLoadFailed) finalErrorMsgInProgressBar = "Błąd Kategorii!";
+                else if(modelsLoadFailed) finalErrorMsgInProgressBar = "Błąd Modeli AI!";
+                else finalErrorMsgInProgressBar = "Nieznany błąd ładowania!";
+            }
+            errorLoadingVisuals(finalErrorMsgInProgressBar);
+            startButton.setDisable(true);
+        }
+    }
+
+
+    private void completeLoadingVisuals(String messageInBar) {
+        if (fakeProgressTimeline != null) {
+            fakeProgressTimeline.stop();
+        }
+        Timeline completeFill = new Timeline(
+                new KeyFrame(Duration.millis(300), new KeyValue(progressFillRect.widthProperty(), PROGRESS_BAR_WIDTH))
+        );
+        completeFill.setOnFinished(event -> {
+            customProgressBar.setVisible(false);
+            startButton.setVisible(true);
+        });
+        completeFill.play();
+        progressFillRect.setFill(LOADING_GREEN_COLOR);
+        progressText.setText(messageInBar);
+        setBottomStatus(" ", Color.LIGHTGRAY);
+    }
+
+    private void errorLoadingVisuals(String errorMessageInBar) {
+        if (fakeProgressTimeline != null) {
+            fakeProgressTimeline.stop();
+        }
+        customProgressBar.setVisible(true);
+        startButton.setVisible(false);
+
+        if (progressFillRect.getWidth() < PROGRESS_BAR_WIDTH *0.1) {
+            progressFillRect.setWidth(PROGRESS_BAR_WIDTH *0.33);
+        }
+        progressFillRect.setFill(ERROR_RED_COLOR);
+        progressText.setText(errorMessageInBar);
+        setBottomStatus(" ", Color.LIGHTGRAY);
+    }
+
 
     private void addPulseAnimation(Label label) {
         ScaleTransition st = new ScaleTransition(Duration.millis(1200), label);
@@ -126,107 +324,83 @@ public class SplashScreen {
         st.play();
     }
 
-    private void checkDatabaseConnectionAndLoadCategories() {
-        statusLabel.setVisible(true);
-        statusLabel.setTextFill(Color.LIGHTGRAY);
-        statusLabel.setText("Sprawdzanie połączenia z bazą danych...");
-        initialLoadProgressBar.setVisible(false);
-        startButton.setVisible(true);
-        startButton.setDisable(true);
-
+    private void checkDatabaseConnection() {
+        progressText.setText("Sprawdzanie bazy...");
 
         dbCheckTask = new Task<Boolean>() {
             @Override
             protected Boolean call() throws Exception {
-                updateMessage("Sprawdzanie połączenia z bazą danych...");
                 Thread.sleep(200);
                 try (Connection conn = DriverManager.getConnection(
                         DatabaseConfig.getUrl(), DatabaseConfig.getUser(), DatabaseConfig.getPassword())) {
                     return conn != null && conn.isValid(2);
                 } catch (SQLException e) {
-                    System.err.println("Błąd połączenia z bazą danych: " + e.getMessage());
-                    updateMessage("Błąd połączenia z bazą danych!");
                     return false;
                 }
             }
         };
 
-        // Celowo nie bindowane do statusLabel, aby nie nadpisywać statusu ładowania kategorii
-        // statusLabel.textProperty().bind(dbCheckTask.messageProperty());
-
         dbCheckTask.setOnSucceeded(event -> Platform.runLater(() -> {
+            dbCheckCompleted = true;
             boolean dbOk = Boolean.TRUE.equals(dbCheckTask.getValue());
-            // if (statusLabel.textProperty().isBound()) statusLabel.textProperty().unbind(); // Niepotrzebne jeśli nie bindowane
-
             if (dbOk) {
-                statusLabel.setText("Połączono z bazą. Ładowanie kategorii...");
-                statusLabel.setTextFill(Color.LIGHTYELLOW);
-                startButton.setVisible(false);
-                initialLoadProgressBar.setProgress(ProgressBar.INDETERMINATE_PROGRESS);
-                initialLoadProgressBar.setVisible(true);
+                dbCheckFailed = false;
+                progressText.setText("Baza danych OK.");
                 loadCategoriesInBackground();
             } else {
-                updateUIBasedOnDBConnection(false);
-                startButton.setDisable(true);
-                if (statusLabel.textProperty().isBound()) statusLabel.textProperty().unbind(); // Na wszelki wypadek
-                statusLabel.setText("Błąd połączenia z bazą danych!");
+                dbCheckFailed = true;
+                progressText.setText("Błąd bazy danych!");
+                showConnectionErrorAlert();
             }
+            updateCombinedProgress();
         }));
 
         dbCheckTask.setOnFailed(event -> Platform.runLater(() -> {
-            if (statusLabel.textProperty().isBound()) statusLabel.textProperty().unbind();
-            updateUIBasedOnDBConnection(false);
-            startButton.setDisable(true);
-            statusLabel.setText("Błąd połączenia z bazą danych!");
+            dbCheckCompleted = true;
+            dbCheckFailed = true;
+            progressText.setText("Błąd krytyczny bazy!");
+            showConnectionErrorAlert();
+            updateCombinedProgress();
         }));
 
         new Thread(dbCheckTask).start();
     }
 
     private void loadCategoriesInBackground() {
+        progressText.setText("Ładowanie kategorii...");
+
         categoryLoadTask = new Task<Set<String>>() {
             @Override
             protected Set<String> call() throws Exception {
-                updateMessage("Pobieranie kategorii pytań...");
                 Thread.sleep(200);
                 try {
                     return GameService.getAvailableCategories();
                 } catch (Exception e) {
-                    System.err.println("Błąd podczas pobierania kategorii: " + e.getMessage());
-                    updateMessage("Błąd ładowania kategorii!");
                     throw e;
                 }
             }
         };
 
-        statusLabel.textProperty().bind(categoryLoadTask.messageProperty());
-
         categoryLoadTask.setOnSucceeded(event -> Platform.runLater(() -> {
+            categoriesLoadCompleted = true;
             this.loadedCategories = categoryLoadTask.getValue();
-            initialLoadProgressBar.setVisible(false);
-            startButton.setVisible(true);
-            if (statusLabel.textProperty().isBound()) statusLabel.textProperty().unbind();
-
             if (this.loadedCategories != null && !this.loadedCategories.isEmpty()) {
-                statusLabel.setText("Kategorie załadowane. Gotowy do startu!");
-                statusLabel.setTextFill(Color.LIMEGREEN);
-                startButton.setDisable(false);
+                categoriesLoadFailed = false;
+                progressText.setText("Kategorie załadowane.");
             } else {
-                statusLabel.setText("Nie udało się załadować kategorii lub są puste.");
-                statusLabel.setTextFill(Color.ORANGERED);
-                startButton.setDisable(true);
-                showResourceLoadingErrorAlert(new RuntimeException("Brak kategorii lub błąd ładowania."));
+                categoriesLoadFailed = true;
+                progressText.setText("Błąd kategorii!");
+                showResourceLoadingErrorAlert(new RuntimeException("Nie udało się załadować kategorii lub są puste."));
             }
+            updateCombinedProgress();
         }));
 
         categoryLoadTask.setOnFailed(event -> Platform.runLater(() -> {
-            initialLoadProgressBar.setVisible(false);
-            startButton.setVisible(true);
-            startButton.setDisable(true);
-            if (statusLabel.textProperty().isBound()) statusLabel.textProperty().unbind();
-            statusLabel.setText("Krytyczny błąd ładowania kategorii!");
-            statusLabel.setTextFill(Color.RED);
+            categoriesLoadCompleted = true;
+            categoriesLoadFailed = true;
+            progressText.setText("Błąd ładowania kategorii!");
             showResourceLoadingErrorAlert(categoryLoadTask.getException());
+            updateCombinedProgress();
         }));
 
         new Thread(categoryLoadTask).start();
@@ -234,20 +408,19 @@ public class SplashScreen {
 
 
     private void handleStartButtonClick() {
+        if (dbCheckFailed || categoriesLoadFailed || modelsLoadFailed) {
+            showResourceLoadingErrorAlert(new RuntimeException("Nie można uruchomić gry z powodu błędów ładowania."));
+            return;
+        }
         if (loadedCategories == null || loadedCategories.isEmpty()) {
             showResourceLoadingErrorAlert(new RuntimeException("Kategorie nie zostały poprawnie załadowane."));
             return;
         }
-        BackgroundLoader.ensureModelLoadingInitiated();
-        switchToMainMenu(this.loadedCategories);
-    }
-
-
-    private void updateUIBasedOnDBConnection(boolean success) {
-        statusLabel.setTextFill(success ? Color.LIMEGREEN : Color.RED);
-        if (!success) {
-            showConnectionErrorAlert();
+        if (!BackgroundLoader.modelsReadyProperty().get() || BackgroundLoader.modelsLoadingFailedProperty().get()) {
+            showResourceLoadingErrorAlert(new RuntimeException("Modele językowe nie są gotowe lub wystąpił błąd ich ładowania."));
+            return;
         }
+        switchToMainMenu(this.loadedCategories);
     }
 
     private void showConnectionErrorAlert() {
@@ -256,8 +429,15 @@ public class SplashScreen {
         alert.setHeaderText("Nie można połączyć się z bazą danych.");
         alert.setContentText("Sprawdź połączenie internetowe lub konfigurację.\nAplikacja nie może kontynuować bez połączenia.");
         DialogPane dialogPane = alert.getDialogPane();
-        dialogPane.getStylesheets().add(getClass().getResource("/styles.css").toExternalForm());
-        dialogPane.getStyleClass().add("custom-alert");
+        try {
+            String cssPath = getClass().getResource("/styles.css").toExternalForm();
+            if(cssPath != null) {
+                dialogPane.getStylesheets().add(cssPath);
+                dialogPane.getStyleClass().add("custom-alert");
+            }
+        } catch (Exception e) {
+            System.err.println("Nie można załadować styles.css dla alertu: " + e.getMessage());
+        }
         alert.showAndWait();
     }
 
@@ -267,8 +447,15 @@ public class SplashScreen {
         alert.setHeaderText("Wystąpił problem podczas ładowania zasobów aplikacji.");
         alert.setContentText("Aplikacja może nie działać poprawnie.\nSpróbuj ponownie uruchomić aplikację.\nSzczegóły: " + (exception != null ? exception.getMessage() : "Nieznany błąd"));
         DialogPane dialogPane = alert.getDialogPane();
-        dialogPane.getStylesheets().add(getClass().getResource("/styles.css").toExternalForm());
-        dialogPane.getStyleClass().add("custom-alert");
+        try {
+            String cssPath = getClass().getResource("/styles.css").toExternalForm();
+            if(cssPath != null) {
+                dialogPane.getStylesheets().add(cssPath);
+                dialogPane.getStyleClass().add("custom-alert");
+            }
+        } catch (Exception e) {
+            System.err.println("Nie można załadować styles.css dla alertu: " + e.getMessage());
+        }
         alert.showAndWait();
     }
 

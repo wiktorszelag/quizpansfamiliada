@@ -2,7 +2,7 @@ package org.quizpans.services;
 
 import org.quizpans.config.DatabaseConfig;
 import org.quizpans.utils.SynonymManager;
-import org.quizpans.utils.TextNormalizer;
+import org.quizpans.utils.TextNormalizer; // Nadal może być używany do fuzzy, ale nie do kluczy
 import org.quizpans.utils.UsedQuestionsLogger;
 import org.apache.commons.text.similarity.LevenshteinDistance;
 import org.apache.commons.text.similarity.JaroWinklerSimilarity;
@@ -198,53 +198,54 @@ public class GameService {
             if (answer != null && !answer.trim().isEmpty()) {
                 int points = rs.getInt("punkty" + i);
                 String originalAnswerTrimmed = answer.trim();
-                String baseFormSingleString = TextNormalizer.normalizeToBaseForm(originalAnswerTrimmed);
-                if (baseFormSingleString.isEmpty()) continue;
+                String simpleKey = originalAnswerTrimmed.toLowerCase(); // Prosty klucz
 
-                answers.put(baseFormSingleString, 7 - i);
-                pointsMap.put(baseFormSingleString, points);
-                baseFormToOriginalMap.put(baseFormSingleString, originalAnswerTrimmed);
+                if (simpleKey.isEmpty()) continue;
+
+                answers.put(simpleKey, 7 - i);
+                pointsMap.put(simpleKey, points);
+                baseFormToOriginalMap.put(simpleKey, originalAnswerTrimmed);
 
                 List<String> answerTokens = TextNormalizer.getLemmatizedTokens(originalAnswerTrimmed, true);
                 if (answerTokens.size() >= MIN_WORDS_FOR_KEYWORD_LOGIC) {
-                    answerKeyToCombinedKeywords.putIfAbsent(baseFormSingleString, new HashSet<>());
-                    answerKeyToCombinedKeywords.get(baseFormSingleString).addAll(answerTokens);
+                    answerKeyToCombinedKeywords.putIfAbsent(simpleKey, new HashSet<>());
+                    answerKeyToCombinedKeywords.get(simpleKey).addAll(answerTokens);
                 }
             }
         }
         for (Map.Entry<String, String> entry : baseFormToOriginalMap.entrySet()) {
-            loadSynonyms(entry.getValue(), entry.getKey());
+            loadSynonyms(entry.getValue(), entry.getKey()); // Przekazuj oryginalny tekst i prosty klucz
         }
     }
 
-    private void loadSynonyms(String originalAnswerText, String originalAnswerBaseKey) {
-        List<String> rawSynonyms = SynonymManager.findSynonymsFor(originalAnswerText);
+    private void loadSynonyms(String originalAnswerText, String originalAnswerSimpleKey) {
+        List<String> rawSynonyms = SynonymManager.findSynonymsFor(originalAnswerText); // SynonymManager szuka po oryginalnym tekście
         for (String syn : rawSynonyms) {
             String trimmedSyn = syn.trim();
             if (trimmedSyn.isEmpty()) continue;
 
-            String processedSynSingleString = TextNormalizer.normalizeToBaseForm(trimmedSyn);
-            if (processedSynSingleString.isEmpty() || processedSynSingleString.equals(originalAnswerBaseKey)) {
+            String simpleSynonymKey = trimmedSyn.toLowerCase(); // Prosty klucz dla synonimu
+            if (simpleSynonymKey.isEmpty() || simpleSynonymKey.equals(originalAnswerSimpleKey)) {
                 continue;
             }
 
             boolean isSynonymEqualToAnotherMainAnswer = false;
-            if (baseFormToOriginalMap.containsKey(processedSynSingleString) && !processedSynSingleString.equals(originalAnswerBaseKey)) {
+            if (baseFormToOriginalMap.containsKey(simpleSynonymKey) && !simpleSynonymKey.equals(originalAnswerSimpleKey)) {
                 isSynonymEqualToAnotherMainAnswer = true;
             }
 
             if (!isSynonymEqualToAnotherMainAnswer) {
-                if (!synonymMap.containsKey(processedSynSingleString)) {
-                    synonymMap.put(processedSynSingleString, originalAnswerBaseKey);
+                if (!synonymMap.containsKey(simpleSynonymKey)) {
+                    synonymMap.put(simpleSynonymKey, originalAnswerSimpleKey);
                 }
 
                 List<String> synonymTokens = TextNormalizer.getLemmatizedTokens(trimmedSyn, true);
                 if (synonymTokens.size() >= MIN_WORDS_FOR_KEYWORD_LOGIC) {
-                    if (answerKeyToCombinedKeywords.containsKey(originalAnswerBaseKey)) {
-                        answerKeyToCombinedKeywords.get(originalAnswerBaseKey).addAll(synonymTokens);
+                    if (answerKeyToCombinedKeywords.containsKey(originalAnswerSimpleKey)) {
+                        answerKeyToCombinedKeywords.get(originalAnswerSimpleKey).addAll(synonymTokens);
                     } else {
-                        answerKeyToCombinedKeywords.putIfAbsent(originalAnswerBaseKey, new HashSet<>());
-                        answerKeyToCombinedKeywords.get(originalAnswerBaseKey).addAll(synonymTokens);
+                        answerKeyToCombinedKeywords.putIfAbsent(originalAnswerSimpleKey, new HashSet<>());
+                        answerKeyToCombinedKeywords.get(originalAnswerSimpleKey).addAll(synonymTokens);
                     }
                 }
             }
@@ -254,20 +255,32 @@ public class GameService {
     public Optional<String> checkAnswer(String userAnswer) {
         if (userAnswer == null || userAnswer.trim().isEmpty()) return Optional.empty();
 
+        String processedUserInputSimple = userAnswer.trim().toLowerCase(); // Prosta normalizacja odpowiedzi użytkownika
+
+        if (processedUserInputSimple.isEmpty()) return Optional.empty();
+
+        if (answers.containsKey(processedUserInputSimple)) {
+            return Optional.of(processedUserInputSimple);
+        }
+
+        String synonymMapsToKey = synonymMap.get(processedUserInputSimple);
+        if (synonymMapsToKey != null && answers.containsKey(synonymMapsToKey)) {
+            return Optional.of(synonymMapsToKey);
+        }
+
+        // Zachowujemy logikę fuzzy matching, ale ona nadal może używać TextNormalizer.normalizeToBaseForm
+        // dla bardziej zaawansowanego porównania, jeśli to konieczne.
+        // Jednak klucze główne, z którymi porównuje, powinny być teraz 'simpleKey'.
+        // To wymagałoby dostosowania logiki fuzzy matchingu, aby wiedziała, że
+        // correctAnswerKeySingleString to teraz simpleKey, a nie w pełni znormalizowana forma.
+        // Na potrzeby tego przykładu, zakładam, że fuzzy matching może nadal próbować
+        // normalizować, ale jego skuteczność będzie zależeć od spójności.
+
+        // --- Uproszczona/Zmodyfikowana logika Fuzzy (DO PRZEGLĄDU I DOSTOSOWANIA) ---
         String originalUserAnswerForComparison = userAnswer;
-        String processedInputSingleString = TextNormalizer.normalizeToBaseForm(originalUserAnswerForComparison);
-        List<String> processedUserTokens = TextNormalizer.getLemmatizedTokens(originalUserAnswerForComparison, true);
+        String processedInputDeepNormalized = TextNormalizer.normalizeToBaseForm(originalUserAnswerForComparison);
+        List<String> processedUserTokensDeepNormalized = TextNormalizer.getLemmatizedTokens(originalUserAnswerForComparison, true);
 
-        if (processedInputSingleString.isEmpty() && (processedUserTokens == null || processedUserTokens.isEmpty())) return Optional.empty();
-
-        if (answers.containsKey(processedInputSingleString)) {
-            return Optional.of(processedInputSingleString);
-        }
-
-        String synonymMatchResult = synonymMap.get(processedInputSingleString);
-        if (synonymMatchResult != null && answers.containsKey(synonymMatchResult)) {
-            return Optional.of(synonymMatchResult);
-        }
 
         String bestFuzzyMatchKey = null;
         double highestOverallConfidence = 0.0;
@@ -275,14 +288,18 @@ public class GameService {
         JaroWinklerSimilarity jwSimilarity = new JaroWinklerSimilarity();
         LevenshteinDistance levenshteinDistance = new LevenshteinDistance();
 
-        Set<String> inputNGramsSingleString = getCharacterNGrams(processedInputSingleString, N_GRAM_SIZE);
-        int inputSingleStringLength = processedInputSingleString.length();
+        Set<String> inputNGramsSingleString = getCharacterNGrams(processedInputDeepNormalized, N_GRAM_SIZE);
+        int inputSingleStringLength = processedInputDeepNormalized.length();
 
         for (Map.Entry<String, String> correctAnswerEntry : baseFormToOriginalMap.entrySet()) {
-            String correctAnswerKeySingleString = correctAnswerEntry.getKey();
+            String correctAnswerSimpleKey = correctAnswerEntry.getKey(); // To jest teraz np. "slowo kluczowe"
             String originalCorrectAnswerText = correctAnswerEntry.getValue();
 
-            if (correctAnswerKeySingleString.isEmpty()) continue;
+            // Do fuzzy matchingu możemy chcieć porównać głęboko znormalizowaną odpowiedź użytkownika
+            // z głęboko znormalizowaną formą poprawnej odpowiedzi (nie tylko z simpleKey)
+            String correctDeepNormalized = TextNormalizer.normalizeToBaseForm(originalCorrectAnswerText);
+            if (correctDeepNormalized.isEmpty()) continue;
+
 
             List<String> correctFormattedTokens = TextNormalizer.getLemmatizedTokens(originalCorrectAnswerText, true);
 
@@ -290,12 +307,12 @@ public class GameService {
             double keywordScoreContribution = 0.0;
             boolean strongPartialKeywordMatch = false;
 
-            if (answerKeyToCombinedKeywords.containsKey(correctAnswerKeySingleString)) {
-                Set<String> expectedKeywords = answerKeyToCombinedKeywords.get(correctAnswerKeySingleString);
+            if (answerKeyToCombinedKeywords.containsKey(correctAnswerSimpleKey)) {
+                Set<String> expectedKeywords = answerKeyToCombinedKeywords.get(correctAnswerSimpleKey);
                 if (expectedKeywords != null && !expectedKeywords.isEmpty() &&
-                        processedUserTokens != null && !processedUserTokens.isEmpty()) {
+                        processedUserTokensDeepNormalized != null && !processedUserTokensDeepNormalized.isEmpty()) {
 
-                    Set<String> userKeywordSet = new HashSet<>(processedUserTokens);
+                    Set<String> userKeywordSet = new HashSet<>(processedUserTokensDeepNormalized);
                     double tempKeywordScore = 0.0;
 
                     if (expectedKeywords.containsAll(userKeywordSet) && !userKeywordSet.isEmpty()) {
@@ -321,27 +338,27 @@ public class GameService {
             if (strongPartialKeywordMatch) {
                 currentCombinedConfidence = STRONG_PARTIAL_KEYWORD_CONFIDENCE;
             } else {
-                int ld = levenshteinDistance.apply(processedInputSingleString, correctAnswerKeySingleString);
-                int adaptiveLevThreshold = calculateAdaptiveLevenshteinThreshold(correctAnswerKeySingleString.length());
+                int ld = levenshteinDistance.apply(processedInputDeepNormalized, correctDeepNormalized);
+                int adaptiveLevThreshold = calculateAdaptiveLevenshteinThreshold(correctDeepNormalized.length());
                 if (ld <= adaptiveLevThreshold) {
                     double levSimString = 0.0;
-                    int maxLengthString = Math.max(inputSingleStringLength, correctAnswerKeySingleString.length());
+                    int maxLengthString = Math.max(inputSingleStringLength, correctDeepNormalized.length());
                     if (maxLengthString > 0) {
                         levSimString = 1.0 - ((double) ld / maxLengthString);
                     } else if (ld == 0) {
                         levSimString = 1.0;
                     }
 
-                    double jwScoreString = (inputSingleStringLength >= 1 && correctAnswerKeySingleString.length() >= 1) ?
-                            jwSimilarity.apply(processedInputSingleString, correctAnswerKeySingleString) : 0.0;
+                    double jwScoreString = (inputSingleStringLength >= 1 && correctDeepNormalized.length() >= 1) ?
+                            jwSimilarity.apply(processedInputDeepNormalized, correctDeepNormalized) : 0.0;
 
-                    Set<String> correctNGramsSingleStringLocal = getCharacterNGrams(correctAnswerKeySingleString, N_GRAM_SIZE);
+                    Set<String> correctNGramsSingleStringLocal = getCharacterNGrams(correctDeepNormalized, N_GRAM_SIZE);
                     double jaccardScoreTrigramString = calculateJaccardSimilarity(inputNGramsSingleString, correctNGramsSingleStringLocal);
 
                     double tokenSetJaccardScore = 0.0;
-                    if ((processedUserTokens != null && !processedUserTokens.isEmpty()) || (correctFormattedTokens != null && !correctFormattedTokens.isEmpty())) {
+                    if ((processedUserTokensDeepNormalized != null && !processedUserTokensDeepNormalized.isEmpty()) || (correctFormattedTokens != null && !correctFormattedTokens.isEmpty())) {
                         tokenSetJaccardScore = calculateJaccardSimilarity(
-                                processedUserTokens != null ? new HashSet<>(processedUserTokens) : new HashSet<>(),
+                                processedUserTokensDeepNormalized != null ? new HashSet<>(processedUserTokensDeepNormalized) : new HashSet<>(),
                                 correctFormattedTokens != null ? new HashSet<>(correctFormattedTokens) : new HashSet<>()
                         );
                     }
@@ -356,7 +373,7 @@ public class GameService {
 
             if (currentCombinedConfidence > highestOverallConfidence) {
                 highestOverallConfidence = currentCombinedConfidence;
-                bestFuzzyMatchKey = correctAnswerKeySingleString;
+                bestFuzzyMatchKey = correctAnswerSimpleKey; // Zwracamy simpleKey, nie deepNormalized
             }
         }
 
@@ -376,35 +393,23 @@ public class GameService {
         if (bestFuzzyMatchKey != null && highestOverallConfidence >= effectiveThreshold) {
             return Optional.of(bestFuzzyMatchKey);
         }
+        // --- Koniec części Fuzzy ---
 
-        if (processedUserTokens != null && processedUserTokens.size() == 1 && (bestFuzzyMatchKey == null || highestOverallConfidence < effectiveThreshold )) {
-            String userSingleWord = processedInputSingleString;
 
+        // Fallback dla pojedynczych słów, jeśli logika fuzzy nie zadziałała
+        // Tutaj porównujemy prostą formę odpowiedzi użytkownika z prostymi kluczami odpowiedzi
+        if (processedUserInputSimple.split("\\s+").length == 1 && (bestFuzzyMatchKey == null || highestOverallConfidence < effectiveThreshold)) {
             for (Map.Entry<String, String> correctAnswerEntry : baseFormToOriginalMap.entrySet()) {
-                String correctAnswerKey = correctAnswerEntry.getKey();
-                String originalCorrectText = correctAnswerEntry.getValue();
-                List<String> correctTokensForFallback = TextNormalizer.getLemmatizedTokens(originalCorrectText, true);
-
-                if (correctTokensForFallback != null && correctTokensForFallback.size() == 1) {
-                    String correctSingleWordKey = correctAnswerKey;
-                    int ldFallback = levenshteinDistance.apply(userSingleWord, correctSingleWordKey);
-                    int allowedDistanceFallback = 1;
-                    if (userSingleWord.length() >= 5 || correctSingleWordKey.length() >= 5) {
-                        allowedDistanceFallback = 2;
-                    }
-                    if (userSingleWord.length() >= 8 || correctSingleWordKey.length() >= 8) {
-                        allowedDistanceFallback = Math.min(3, (int) Math.max(1, correctSingleWordKey.length() * 0.3));
-                    }
-
-                    if (ldFallback <= allowedDistanceFallback) {
-                        double jwFallback = jwSimilarity.apply(userSingleWord, correctSingleWordKey);
-                        if (jwFallback >= FALLBACK_SINGLE_WORD_JARO_WINKLER_THRESHOLD) {
-                            return Optional.of(correctSingleWordKey);
-                        }
+                String correctAnswerSimpleKey = correctAnswerEntry.getKey(); // np. "slowo"
+                if (correctAnswerSimpleKey.split("\\s+").length == 1) { // Jeśli poprawna odpowiedź też jest jednowyrazowa
+                    double jwFallback = jwSimilarity.apply(processedUserInputSimple, correctAnswerSimpleKey);
+                    if (jwFallback >= FALLBACK_SINGLE_WORD_JARO_WINKLER_THRESHOLD) {
+                        return Optional.of(correctAnswerSimpleKey);
                     }
                 }
             }
         }
+
         return Optional.empty();
     }
 
@@ -417,9 +422,9 @@ public class GameService {
         return Math.min(4, (int) Math.ceil(correctAnswerLength * 0.30));
     }
 
-    public int getAnswerPosition(String answerBaseForm) { return 6 - answers.getOrDefault(answerBaseForm, 0); }
-    public int getPoints(String answerBaseForm) { return pointsMap.getOrDefault(answerBaseForm, 0); }
-    public String getOriginalAnswer(String baseForm) { return baseFormToOriginalMap.getOrDefault(baseForm, baseForm); }
+    public int getAnswerPosition(String answerKey) { return 6 - answers.getOrDefault(answerKey, 0); }
+    public int getPoints(String answerKey) { return pointsMap.getOrDefault(answerKey, 0); }
+    public String getOriginalAnswer(String key) { return baseFormToOriginalMap.getOrDefault(key, key); }
     public String getCurrentQuestion() { return currentQuestion; }
     public int getCurrentQuestionId() { return currentQuestionId; }
     public String getCategory() { return category; }
@@ -429,7 +434,7 @@ public class GameService {
     public void setCurrentQuestionToNull() { currentQuestion = null; currentQuestionId = -1; answers.clear(); pointsMap.clear(); synonymMap.clear(); baseFormToOriginalMap.clear(); answerKeyToCombinedKeywords.clear();}
 
     public static class AnswerData {
-        public final String baseForm;
+        public final String baseForm; // Ten "baseForm" to teraz będzie simpleKey
         public final String originalText;
         public final int points;
         public final int displayOrderIndex;
@@ -455,10 +460,10 @@ public class GameService {
 
         int displayIndex = 0;
         for (Map.Entry<String, Integer> entry : sortedEntries) {
-            String baseForm = entry.getKey();
-            String originalText = baseFormToOriginalMap.getOrDefault(baseForm, baseForm);
-            int points = pointsMap.getOrDefault(baseForm, 0);
-            allAnswersData.add(new AnswerData(baseForm, originalText, points, displayIndex++));
+            String simpleKey = entry.getKey();
+            String originalText = baseFormToOriginalMap.getOrDefault(simpleKey, simpleKey);
+            int points = pointsMap.getOrDefault(simpleKey, 0);
+            allAnswersData.add(new AnswerData(simpleKey, originalText, points, displayIndex++));
         }
         return allAnswersData;
     }
