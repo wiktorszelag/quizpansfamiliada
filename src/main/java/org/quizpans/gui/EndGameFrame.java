@@ -20,7 +20,7 @@ import javafx.scene.paint.Stop;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.scene.text.TextAlignment;
-import javafx.scene.text.FontPosture; // Dodany import
+import javafx.scene.text.FontPosture;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 

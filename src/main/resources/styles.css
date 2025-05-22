@@ -176,94 +176,6 @@
     -fx-effect: dropshadow(gaussian, rgba(178, 31, 31, 0.4), 6, 0, 0, 0);
 }
 
-.combo-box {
-    -fx-font-size: 18px;
-    -fx-background-radius: 8px;
-    -fx-border-radius: 8px;
-    -fx-border-color: rgba(255, 255, 255, 0.25);
-    -fx-border-width: 1px;
-    -fx-background-color: rgba(0, 0, 0, 0.25);
-    -fx-text-fill: white;
-    -fx-prompt-text-fill: rgba(255, 255, 255, 0.6);
-    -fx-cursor: hand;
-    -fx-pref-height: 42px;
-    -fx-padding: 0 0 0 10px;
-}
-.combo-box .arrow-button {
-    -fx-background-color: rgba(255, 255, 255, 0.1);
-    -fx-background-radius: 0 8px 8px 0;
-    -fx-padding: 0 8px 0 5px;
-}
-.combo-box .arrow-button .arrow {
-    -fx-background-color: rgba(255, 255, 255, 0.8);
-    -fx-pref-width: 7px;
-    -fx-pref-height: 7px;
-}
-.combo-box > .list-cell {
-    -fx-background-color: transparent;
-    -fx-text-fill: white;
-    -fx-font-size: 18px;
-    -fx-padding: 8px 0px 8px 0px;
-}
-.combo-box-popup .list-view {
-    -fx-background-color: rgba(30, 30, 50, 0.9);
-    -fx-border-color: rgba(255, 255, 255, 0.2);
-    -fx-border-width: 1px;
-    -fx-background-insets: 0;
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.5), 10, 0, 2, 2);
-}
-.combo-box-popup .list-view .list-cell {
-    -fx-background-color: transparent;
-    -fx-text-fill: rgba(255, 255, 255, 0.9);
-    -fx-font-size: 17px;
-    -fx-padding: 10px 15px;
-}
-.combo-box-popup .list-view .list-cell:hover {
-    -fx-background-color: rgba(255, 255, 255, 0.1);
-    -fx-text-fill: white;
-}
-.combo-box-popup .list-view .list-cell:filled:selected,
-.combo-box-popup .list-view .list-cell:filled:selected:hover {
-    -fx-background-color: rgba(178, 31, 31, 0.7);
-    -fx-text-fill: white;
-}
-
-.slider {
-    -fx-pref-height: 42px;
-}
-.slider .track {
-    -fx-background-color: rgba(0, 0, 0, 0.35);
-    -fx-background-radius: 4px;
-    -fx-pref-height: 10px;
-}
-.slider:focused .track {
-    -fx-background-color: rgba(0, 0, 0, 0.5);
-}
-.slider .thumb {
-    -fx-background-color: gold;
-    -fx-pref-width: 22px;
-    -fx-pref-height: 22px;
-    -fx-background-radius: 11px;
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.4), 6, 0, 0, 1);
-}
-.slider:focused .thumb {
-    -fx-background-color: #ffeb3b;
-    -fx-effect: dropshadow(gaussian, rgba(255,215,0,0.6), 9, 0, 0, 1);
-}
-.slider .axis {
-    -fx-tick-label-fill: rgba(255, 255, 255, 0.75);
-    -fx-font-size: 11px;
-    -fx-tick-length: 8px;
-}
-.slider .axis .minor-tick-mark {
-     -fx-stroke: rgba(255, 255, 255, 0.3);
-     -fx-stroke-width: 1px;
-}
-.slider .major-tick-mark {
-    -fx-stroke: rgba(255, 255, 255, 0.5);
-    -fx-stroke-width: 1px;
-}
-
 .timer-normal {
     -fx-text-fill: gold;
     -fx-font-weight: bold;
@@ -526,4 +438,448 @@
 .ranking-row:hover {
     -fx-background-color: rgba(255, 215, 0, 0.1);
     -fx-background-radius: 4px;
+}
+.lobby-card {
+    -fx-alignment: center;
+    -fx-spacing: 10px;
+}
+
+.lobby-card .label {
+    -fx-text-fill: white;
+    -fx-text-alignment: center;
+    -fx-wrap-text: true;
+}
+.small-control-button {
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-padding: 5px 10px;
+    -fx-min-width: 40px;
+    -fx-background-color: rgba(255, 255, 255, 0.1);
+    -fx-text-fill: white;
+    -fx-border-color: rgba(255,255,255,0.2);
+    -fx-border-radius: 5px;
+    -fx-background-radius: 5px;
+}
+
+.small-control-button:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.2);
+}
+
+.small-control-button:pressed {
+    -fx-background-color: rgba(255, 255, 255, 0.05);
+}
+
+.list-view {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+
+.list-view .list-cell {
+    -fx-background-color: transparent;
+    -fx-padding: 3.5px 0px 3.5px 0px;
+    -fx-background-insets: 0;
+    -fx-border-width: 0;
+}
+
+.list-view .scroll-bar:vertical,
+.list-view .scroll-bar:horizontal {
+    -fx-background-color: transparent;
+}
+
+.list-view .scroll-bar:vertical .thumb,
+.list-view .scroll-bar:horizontal .thumb {
+    -fx-background-color: rgba(100, 100, 140, 0.7);
+    -fx-background-insets: 2;
+    -fx-background-radius: 4;
+}
+
+.list-view .scroll-bar:vertical .increment-button,
+.list-view .scroll-bar:vertical .decrement-button,
+.list-view .scroll-bar:horizontal .increment-button,
+.list-view .scroll-bar:horizontal .decrement-button {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+    -fx-pref-height: 0;
+    -fx-pref-width: 0;
+}
+
+.list-view .corner {
+    -fx-background-color: transparent;
+}
+
+.no-scroll-bar > .scroll-bar:vertical,
+.no-scroll-bar > .scroll-bar:horizontal {
+    -fx-opacity: 0;
+    -fx-pref-width: 0;
+    -fx-pref-height: 0;
+    -fx-padding: 0;
+}
+.no-scroll-bar {
+     -fx-background-insets: 0;
+     -fx-padding: 0;
+}
+.config-panel-translucent {
+    -fx-background-color: rgba(80, 80, 100, 0.45);
+    -fx-background-radius: 10px;
+    -fx-padding: 20px;
+    -fx-border-color: rgba(150, 150, 180, 0.5);
+    -fx-border-width: 1px;
+    -fx-border-radius: 10px;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.15), 8, 0.0, 0, 2);
+}
+
+.config-panel-title {
+    -fx-font-family: "Arial Black", "Impact", sans-serif;
+    -fx-font-size: 26px;
+    -fx-text-fill: gold;
+    -fx-padding-bottom: 12px;
+    -fx-border-width: 0;
+    -fx-border-color: transparent;
+    -fx-alignment: center-left;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.5), 5, 0.5, 0, 1);
+}
+
+.section-title-label-modern {
+    -fx-font-family: "Segoe UI Semibold", "Arial", sans-serif;
+    -fx-font-size: 22px;
+    -fx-text-fill: #FFD700;
+    -fx-padding: 5px 0 8px 0;
+    -fx-border-width: 0;
+    -fx-border-color: transparent;
+    -fx-alignment: center;
+    -fx-text-alignment: center;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.4), 4, 0.3, 0, 1);
+}
+
+.config-label-modern {
+    -fx-font-family: "Segoe UI Semibold", Arial, sans-serif;
+    -fx-font-size: 16px;
+    -fx-text-fill: #E0E8F0;
+    -fx-padding: 5px 0;
+    -fx-font-weight: 600;
+}
+
+.config-form-control-modern {
+    -fx-font-size: 15px;
+    -fx-background-radius: 5px;
+    -fx-border-radius: 5px;
+    -fx-border-color: rgba(180, 190, 210, 0.6);
+    -fx-border-width: 1px;
+    -fx-padding: 8px 12px;
+    -fx-prompt-text-fill: rgba(200, 210, 220, 0.6);
+    -fx-text-fill: white;
+    -fx-background-color: rgba(40, 50, 75, 0.7);
+    -fx-pref-height: 40px;
+    -fx-effect: innershadow(gaussian, rgba(0,0,0,0.1), 3, 0, 1, 1);
+}
+
+.config-form-control-modern:focused {
+    -fx-border-color: gold;
+    -fx-border-width: 1.5px;
+    -fx-background-color: rgba(50, 60, 85, 0.8);
+    -fx-effect: dropshadow(gaussian, rgba(255,215,0,0.3), 6,0,0,0), innershadow(gaussian, rgba(0,0,0,0.2), 5, 0, 1, 1);
+}
+
+.combo-box {
+    -fx-font-size: 15px;
+    -fx-background-radius: 5px;
+    -fx-border-radius: 5px;
+    -fx-border-color: rgba(180, 190, 210, 0.6);
+    -fx-border-width: 1px;
+    -fx-background-color: rgba(40, 50, 75, 0.7);
+    -fx-text-fill: white;
+    -fx-prompt-text-fill: rgba(200, 210, 220, 0.6);
+    -fx-cursor: hand;
+    -fx-pref-height: 40px;
+    -fx-padding: 0 0 0 12px; /* Adjusted padding to align text */
+    -fx-effect: innershadow(gaussian, rgba(0,0,0,0.1), 3, 0, 1, 1);
+}
+.combo-box:focused {
+    -fx-border-color: gold;
+    -fx-border-width: 1.5px;
+    -fx-background-color: rgba(50, 60, 85, 0.8);
+    -fx-effect: dropshadow(gaussian, rgba(255,215,0,0.3), 6,0,0,0), innershadow(gaussian, rgba(0,0,0,0.2), 5, 0, 1, 1);
+}
+.combo-box .arrow-button {
+    -fx-background-color: transparent;
+    -fx-padding: 0 10px 0 8px; /* Padding for the arrow button */
+}
+.combo-box .arrow-button .arrow {
+    -fx-background-color: #B0B8C0; /* Color of the dropdown arrow */
+    -fx-pref-width: 7px; /* Width of the arrow */
+    -fx-pref-height: 7px; /* Height of the arrow */
+}
+.combo-box > .list-cell {
+    -fx-background-color: transparent; /* Ensure list cell in button area is transparent */
+    -fx-text-fill: white; /* Text color for selected item in combo box button */
+    -fx-font-size: 15px;
+    -fx-padding: 8px 0px 8px 0px; /* Adjust padding as needed, original was 0 */
+}
+.combo-box-popup .list-view {
+    -fx-background-color: #282C3D; /* Background of the dropdown list */
+    -fx-border-color: #4A506A; /* Border of the dropdown list */
+    -fx-border-width: 1px;
+    -fx-background-insets: 0;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.4), 10, 0, 2, 2);
+}
+.combo-box-popup .list-view .list-cell {
+    -fx-background-color: transparent; /* Background of items in dropdown */
+    -fx-text-fill: #D8DDE4; /* Text color of items in dropdown */
+    -fx-font-size: 14px;
+    -fx-padding: 10px 15px; /* Padding for items in dropdown */
+}
+.combo-box-popup .list-view .list-cell:hover {
+    -fx-background-color: rgba(255, 215, 0, 0.15); /* Background on hover */
+    -fx-text-fill: white; /* Text color on hover */
+}
+.combo-box-popup .list-view .list-cell:filled:selected,
+.combo-box-popup .list-view .list-cell:filled:selected:hover {
+    -fx-background-color: rgba(255, 215, 0, 0.3); /* Background of selected item */
+    -fx-text-fill: white; /* Text color of selected item */
+}
+
+.custom-slider-modern .track {
+    -fx-background-color: rgba(0,0,0,0.5);
+    -fx-background-radius: 3px;
+    -fx-pref-height: 7px;
+}
+.custom-slider-modern:focused .track {
+    -fx-background-color: rgba(0,0,0,0.6);
+}
+.custom-slider-modern .thumb {
+    -fx-background-color: gold;
+    -fx-pref-width: 20px;
+    -fx-pref-height: 20px;
+    -fx-background-radius: 10px;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 5, 0, 0, 1);
+}
+.custom-slider-modern:focused .thumb {
+    -fx-background-color: #FFD700;
+    -fx-effect: dropshadow(gaussian, rgba(255,215,0,0.5), 8, 0, 0, 1);
+}
+.custom-slider-modern .axis {
+     -fx-tick-label-fill: #B0B8C0;
+     -fx-font-size: 10px;
+     -fx-tick-length: 7px;
+}
+.custom-slider-modern .axis .minor-tick-mark {
+     -fx-stroke: rgba(176,184,192,0.4);
+     -fx-stroke-width: 1px;
+}
+.custom-slider-modern .major-tick-mark {
+    -fx-stroke: rgba(176,184,192,0.6);
+    -fx-stroke-width: 1px;
+}
+.slider-value-label-modern {
+    -fx-font-family: "Segoe UI Semibold", Arial, sans-serif;
+    -fx-font-size: 16px;
+    -fx-text-fill: #E0E8F0;
+    -fx-font-weight: 600;
+    -fx-min-width: 45px;
+    -fx-alignment: center-right;
+}
+
+.quizmaster-label-modern {
+    -fx-font-size: 16px;
+    -fx-text-fill: #B0E0E6; /* Powder blue, for distinction */
+    -fx-font-style: italic;
+    -fx-padding: 5px;
+    -fx-border-width: 0;
+    -fx-border-color: transparent;
+    -fx-alignment: center;
+}
+.selected-quizmaster { /* Style for selected quizmaster label */
+    -fx-background-color: rgba(255, 215, 0, 0.2);
+    -fx-border-color: gold;
+    -fx-border-width: 1px;
+    -fx-border-radius: 4px;
+    -fx-background-radius: 4px;
+}
+
+
+.participant-list-pane-modern {
+    -fx-background-color: rgba(60, 60, 80, 0.35); /* Slightly translucent dark blue-grey */
+    -fx-background-radius: 8px;
+    -fx-padding: 15px;
+    -fx-border-color: rgba(120, 120, 150, 0.4); /* Softer border color */
+    -fx-border-width: 1px;
+    -fx-border-radius: 8px;
+}
+
+.team-name-input-modern {
+    -fx-font-family: "Segoe UI Semibold", "Arial", sans-serif;
+    -fx-font-size: 17px;
+    -fx-text-fill: #FFD700; /* Gold, for emphasis */
+    -fx-background-color: transparent;
+    -fx-border-color: transparent; /* No border by default */
+    -fx-border-width: 0;
+    -fx-padding: 5px 2px;
+    -fx-background-radius: 0; /* Sharp edges */
+    -fx-border-radius: 0;
+    -fx-alignment: center;
+    -fx-text-alignment: center;
+}
+.team-name-input-modern:focused {
+    -fx-border-color: transparent transparent gold transparent; /* Underline on focus */
+    -fx-border-width: 0 0 1.5px 0;
+    -fx-effect: none; /* Remove other effects on focus */
+}
+
+/* Styles for TilePane based participant lists */
+.participant-tile-pane {
+    /* Base styles if needed, mostly controlled by Java (gaps, orientation) */
+}
+.participant-scroll-pane {
+    -fx-background: transparent;
+    -fx-background-color: transparent;
+}
+.participant-scroll-pane > .viewport {
+   -fx-background-color: transparent;
+}
+/* Custom scrollbar for participant lists if desired, otherwise uses default scroll-pane styles */
+.participant-scroll-pane .scroll-bar:vertical {
+    -fx-background-color: rgba(0,0,0,0.2);
+    -fx-pref-width: 8px;
+}
+.participant-scroll-pane .scroll-bar:vertical .thumb {
+    -fx-background-color: rgba(255,255,255,0.3);
+    -fx-background-radius: 4px;
+}
+.participant-scroll-pane .scroll-bar:vertical .increment-button,
+.participant-scroll-pane .scroll-bar:vertical .decrement-button {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+    -fx-pref-height:0;
+}
+
+
+.action-button {
+    -fx-font-size: 13px;
+    -fx-font-weight: normal;
+    -fx-text-fill: white;
+    -fx-background-color: rgba(100, 100, 140, 0.7); /* Default action button color */
+    -fx-background-radius: 5px;
+    -fx-border-color: rgba(150, 150, 180, 0.5);
+    -fx-border-width: 1px;
+    -fx-border-radius: 5px;
+    -fx-padding: 6px 12px;
+    -fx-min-width: 120px; /* Minimum width for these buttons */
+    -fx-cursor: hand;
+}
+.action-button:hover {
+    -fx-background-color: rgba(120, 120, 160, 0.8); /* Lighter on hover */
+    -fx-border-color: rgba(180, 180, 210, 0.7);
+}
+.action-button:pressed {
+    -fx-background-color: rgba(80, 80, 110, 0.9); /* Darker on press */
+}
+
+.button-assign-qm { -fx-background-color: #4CAF50; } /* Green */
+.button-assign-qm:hover { -fx-background-color: #66BB6A; }
+.button-assign-red { -fx-background-color: #F44336; } /* Red */
+.button-assign-red:hover { -fx-background-color: #E57373; }
+.button-assign-blue { -fx-background-color: #2196F3; } /* Blue */
+.button-assign-blue:hover { -fx-background-color: #64B5F6; }
+.button-remove-participant { -fx-background-color: #757575; } /* Grey */
+.button-remove-participant:hover { -fx-background-color: #9E9E9E; }
+
+.button-config-save { -fx-background-color: #4CAF50; } /* Green for save */
+.button-config-save:hover { -fx-background-color: #66BB6A; }
+.button-config-start { -fx-background-color: #FF9800; } /* Orange for start */
+.button-config-start:hover { -fx-background-color: #FFB74D; }
+.button-config-leave { -fx-background-color: #F44336; } /* Red for leave */
+.button-config-leave:hover { -fx-background-color: #E57373; }
+
+
+.no-scroll-bar-config-pane > .scroll-bar:vertical,
+.no-scroll-bar-config-pane > .scroll-bar:horizontal {
+    -fx-opacity: 0;
+    -fx-pref-width: 0;
+    -fx-pref-height: 0;
+    -fx-padding: 0;
+}
+.no-scroll-bar-config-pane {
+     -fx-background-insets: 0;
+     -fx-padding: 0;
+}
+
+/* Styles for Player Tiles and their specific action buttons */
+.player-tile-icon-placeholder {
+    -fx-alignment: center;
+}
+
+.player-tile-default-svg-icon {
+    -fx-fill: #A0A8B0;
+}
+
+.player-tile-icon {
+    /* Placeholder if specific styles are needed for the loaded image icon */
+}
+
+.player-tile-action-button {
+    -fx-padding: 5px;
+    -fx-font-size: 11px;
+    -fx-min-width: 30px;
+    -fx-pref-width: 30px;
+    -fx-min-height: 30px;
+    -fx-pref-height: 30px;
+    -fx-background-radius: 15px; /* Circular */
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-border-width: 1.5px;
+    -fx-border-color: transparent; /* No border by default */
+    -fx-alignment: center;
+    -fx-cursor: hand;
+}
+
+.player-tile-action-button.ptab-blue { -fx-background-color: #2196F3; }
+.player-tile-action-button.ptab-blue:hover,
+.player-tile-action-button.ptab-blue:focused {
+    -fx-background-color: #1976D2; /* Darker blue */
+    -fx-border-color: gold;
+    -fx-effect: dropshadow(gaussian, rgba(255,215,0,0.6), 6, 0, 0, 0);
+}
+
+.player-tile-action-button.ptab-qm { -fx-background-color: #4CAF50; }
+.player-tile-action-button.ptab-qm:hover,
+.player-tile-action-button.ptab-qm:focused {
+    -fx-background-color: #388E3C; /* Darker green */
+    -fx-border-color: gold;
+    -fx-effect: dropshadow(gaussian, rgba(255,215,0,0.6), 6, 0, 0, 0);
+}
+
+.player-tile-action-button.ptab-red { -fx-background-color: #F44336; }
+.player-tile-action-button.ptab-red:hover,
+.player-tile-action-button.ptab-red:focused {
+    -fx-background-color: #D32F2F; /* Darker red */
+    -fx-border-color: gold;
+    -fx-effect: dropshadow(gaussian, rgba(255,215,0,0.6), 6, 0, 0, 0);
+}
+
+/* Fallback hover/focus for player tile action buttons if not specifically styled above */
+.player-tile-action-button:hover,
+.player-tile-action-button:focused {
+    -fx-border-color: gold;
+    -fx-effect: dropshadow(gaussian, rgba(255,215,0,0.5), 5, 0, 0, 0);
+}
+
+.player-tile {
+    -fx-border-color: rgba(176, 184, 192, 0.7);
+    -fx-border-width: 1px;
+    -fx-border-radius: 4px;
+    -fx-background-color: rgba(255, 255, 255, 0.03);
+    -fx-background-radius: 4px;
+}
+
+.player-tile-selected {
+    -fx-border-color: gold;
+    -fx-border-width: 1.5px;
+    -fx-effect: dropshadow(gaussian, rgba(255,215,0,0.3), 5, 0, 0, 0);
+    -fx-background-color: rgba(255, 215, 0, 0.05); /* Slightly different background for selected tile */
+}
+
+.player-tile-nick {
+    -fx-text-fill: #E0E8F0;
+    -fx-font-size: 14px;
 }
