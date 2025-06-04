@@ -1,4 +1,4 @@
-package org.quizpans.gui;
+package org.quizpans.gui.onlinegame;
 
 import javafx.animation.FadeTransition;
 import javafx.application.Platform;

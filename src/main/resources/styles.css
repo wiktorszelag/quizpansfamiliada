@@ -15,7 +15,6 @@
     -fx-max-height: 19px;
     -fx-pref-width: 19px;
     -fx-pref-height: 19px;
-
     -fx-background-color: transparent;
     -fx-border-width: 0;
     -fx-border-color: transparent;
@@ -592,7 +591,7 @@
     -fx-prompt-text-fill: rgba(200, 210, 220, 0.6);
     -fx-cursor: hand;
     -fx-pref-height: 40px;
-    -fx-padding: 0 0 0 12px; /* Adjusted padding to align text */
+    -fx-padding: 0 0 0 12px;
     -fx-effect: innershadow(gaussian, rgba(0,0,0,0.1), 3, 0, 1, 1);
 }
 .combo-box:focused {
@@ -603,40 +602,40 @@
 }
 .combo-box .arrow-button {
     -fx-background-color: transparent;
-    -fx-padding: 0 10px 0 8px; /* Padding for the arrow button */
+    -fx-padding: 0 10px 0 8px;
 }
 .combo-box .arrow-button .arrow {
-    -fx-background-color: #B0B8C0; /* Color of the dropdown arrow */
-    -fx-pref-width: 7px; /* Width of the arrow */
-    -fx-pref-height: 7px; /* Height of the arrow */
+    -fx-background-color: #B0B8C0;
+    -fx-pref-width: 7px;
+    -fx-pref-height: 7px;
 }
 .combo-box > .list-cell {
-    -fx-background-color: transparent; /* Ensure list cell in button area is transparent */
-    -fx-text-fill: white; /* Text color for selected item in combo box button */
+    -fx-background-color: transparent;
+    -fx-text-fill: white;
     -fx-font-size: 15px;
-    -fx-padding: 8px 0px 8px 0px; /* Adjust padding as needed, original was 0 */
+    -fx-padding: 8px 0px 8px 0px;
 }
 .combo-box-popup .list-view {
-    -fx-background-color: #282C3D; /* Background of the dropdown list */
-    -fx-border-color: #4A506A; /* Border of the dropdown list */
+    -fx-background-color: #282C3D;
+    -fx-border-color: #4A506A;
     -fx-border-width: 1px;
     -fx-background-insets: 0;
     -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.4), 10, 0, 2, 2);
 }
 .combo-box-popup .list-view .list-cell {
-    -fx-background-color: transparent; /* Background of items in dropdown */
-    -fx-text-fill: #D8DDE4; /* Text color of items in dropdown */
+    -fx-background-color: transparent;
+    -fx-text-fill: #D8DDE4;
     -fx-font-size: 14px;
-    -fx-padding: 10px 15px; /* Padding for items in dropdown */
+    -fx-padding: 10px 15px;
 }
 .combo-box-popup .list-view .list-cell:hover {
-    -fx-background-color: rgba(255, 215, 0, 0.15); /* Background on hover */
-    -fx-text-fill: white; /* Text color on hover */
+    -fx-background-color: rgba(255, 215, 0, 0.15);
+    -fx-text-fill: white;
 }
 .combo-box-popup .list-view .list-cell:filled:selected,
 .combo-box-popup .list-view .list-cell:filled:selected:hover {
-    -fx-background-color: rgba(255, 215, 0, 0.3); /* Background of selected item */
-    -fx-text-fill: white; /* Text color of selected item */
+    -fx-background-color: rgba(255, 215, 0, 0.3);
+    -fx-text-fill: white;
 }
 
 .custom-slider-modern .track {
@@ -682,14 +681,14 @@
 
 .quizmaster-label-modern {
     -fx-font-size: 16px;
-    -fx-text-fill: #B0E0E6; /* Powder blue, for distinction */
+    -fx-text-fill: #B0E0E6;
     -fx-font-style: italic;
     -fx-padding: 5px;
     -fx-border-width: 0;
     -fx-border-color: transparent;
     -fx-alignment: center;
 }
-.selected-quizmaster { /* Style for selected quizmaster label */
+.selected-quizmaster {
     -fx-background-color: rgba(255, 215, 0, 0.2);
     -fx-border-color: gold;
     -fx-border-width: 1px;
@@ -699,10 +698,10 @@
 
 
 .participant-list-pane-modern {
-    -fx-background-color: rgba(60, 60, 80, 0.35); /* Slightly translucent dark blue-grey */
+    -fx-background-color: rgba(60, 60, 80, 0.35);
     -fx-background-radius: 8px;
     -fx-padding: 15px;
-    -fx-border-color: rgba(120, 120, 150, 0.4); /* Softer border color */
+    -fx-border-color: rgba(120, 120, 150, 0.4);
     -fx-border-width: 1px;
     -fx-border-radius: 8px;
 }
@@ -710,26 +709,29 @@
 .team-name-input-modern {
     -fx-font-family: "Segoe UI Semibold", "Arial", sans-serif;
     -fx-font-size: 17px;
-    -fx-text-fill: #FFD700; /* Gold, for emphasis */
+    -fx-text-fill: #FFD700;
     -fx-background-color: transparent;
-    -fx-border-color: transparent; /* No border by default */
+    -fx-border-color: transparent;
     -fx-border-width: 0;
     -fx-padding: 5px 2px;
-    -fx-background-radius: 0; /* Sharp edges */
+    -fx-background-radius: 0;
     -fx-border-radius: 0;
     -fx-alignment: center;
     -fx-text-alignment: center;
 }
 .team-name-input-modern:focused {
-    -fx-border-color: transparent transparent gold transparent; /* Underline on focus */
+    -fx-border-color: transparent transparent gold transparent;
     -fx-border-width: 0 0 1.5px 0;
-    -fx-effect: none; /* Remove other effects on focus */
+    -fx-effect: none;
 }
 
-/* Styles for TilePane based participant lists */
 .participant-tile-pane {
-    /* Base styles if needed, mostly controlled by Java (gaps, orientation) */
 }
+.waiting-players-tile-pane {
+    /* Możesz dodać specyficzne style dla TilePane oczekujących, jeśli potrzebne */
+    /* np. -fx-pref-tile-width: USE_COMPUTED_SIZE; */
+}
+
 .participant-scroll-pane {
     -fx-background: transparent;
     -fx-background-color: transparent;
@@ -737,7 +739,6 @@
 .participant-scroll-pane > .viewport {
    -fx-background-color: transparent;
 }
-/* Custom scrollbar for participant lists if desired, otherwise uses default scroll-pane styles */
 .participant-scroll-pane .scroll-bar:vertical {
     -fx-background-color: rgba(0,0,0,0.2);
     -fx-pref-width: 8px;
@@ -758,37 +759,37 @@
     -fx-font-size: 13px;
     -fx-font-weight: normal;
     -fx-text-fill: white;
-    -fx-background-color: rgba(100, 100, 140, 0.7); /* Default action button color */
+    -fx-background-color: rgba(100, 100, 140, 0.7);
     -fx-background-radius: 5px;
     -fx-border-color: rgba(150, 150, 180, 0.5);
     -fx-border-width: 1px;
     -fx-border-radius: 5px;
     -fx-padding: 6px 12px;
-    -fx-min-width: 120px; /* Minimum width for these buttons */
+    -fx-min-width: 120px;
     -fx-cursor: hand;
 }
 .action-button:hover {
-    -fx-background-color: rgba(120, 120, 160, 0.8); /* Lighter on hover */
+    -fx-background-color: rgba(120, 120, 160, 0.8);
     -fx-border-color: rgba(180, 180, 210, 0.7);
 }
 .action-button:pressed {
-    -fx-background-color: rgba(80, 80, 110, 0.9); /* Darker on press */
+    -fx-background-color: rgba(80, 80, 110, 0.9);
 }
 
-.button-assign-qm { -fx-background-color: #4CAF50; } /* Green */
+.button-assign-qm { -fx-background-color: #4CAF50; }
 .button-assign-qm:hover { -fx-background-color: #66BB6A; }
-.button-assign-red { -fx-background-color: #F44336; } /* Red */
+.button-assign-red { -fx-background-color: #F44336; }
 .button-assign-red:hover { -fx-background-color: #E57373; }
-.button-assign-blue { -fx-background-color: #2196F3; } /* Blue */
+.button-assign-blue { -fx-background-color: #2196F3; }
 .button-assign-blue:hover { -fx-background-color: #64B5F6; }
-.button-remove-participant { -fx-background-color: #757575; } /* Grey */
+.button-remove-participant { -fx-background-color: #757575; }
 .button-remove-participant:hover { -fx-background-color: #9E9E9E; }
 
-.button-config-save { -fx-background-color: #4CAF50; } /* Green for save */
+.button-config-save { -fx-background-color: #4CAF50; }
 .button-config-save:hover { -fx-background-color: #66BB6A; }
-.button-config-start { -fx-background-color: #FF9800; } /* Orange for start */
+.button-config-start { -fx-background-color: #FF9800; }
 .button-config-start:hover { -fx-background-color: #FFB74D; }
-.button-config-leave { -fx-background-color: #F44336; } /* Red for leave */
+.button-config-leave { -fx-background-color: #F44336; }
 .button-config-leave:hover { -fx-background-color: #E57373; }
 
 
@@ -804,82 +805,117 @@
      -fx-padding: 0;
 }
 
-/* Styles for Player Tiles and their specific action buttons */
 .player-tile-icon-placeholder {
     -fx-alignment: center;
 }
 
 .player-tile-default-svg-icon {
-    -fx-fill: #A0A8B0;
+    -fx-fill: #B0BEC5;
 }
 
-.player-tile-icon {
-    /* Placeholder if specific styles are needed for the loaded image icon */
+.player-tile-icon-loaded {
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 3, 0, 1, 1);
 }
 
 .player-tile-action-button {
-    -fx-padding: 5px;
+    -fx-padding: 6px;
     -fx-font-size: 11px;
-    -fx-min-width: 30px;
-    -fx-pref-width: 30px;
-    -fx-min-height: 30px;
-    -fx-pref-height: 30px;
-    -fx-background-radius: 15px; /* Circular */
+    -fx-min-width: 32px;
+    -fx-pref-width: 32px;
+    -fx-min-height: 32px;
+    -fx-pref-height: 32px;
+    -fx-background-radius: 16px;
     -fx-text-fill: white;
     -fx-font-weight: bold;
-    -fx-border-width: 1.5px;
-    -fx-border-color: transparent; /* No border by default */
+    -fx-border-width: 0px;
     -fx-alignment: center;
     -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.15), 3, 0, 1, 1);
 }
 
-.player-tile-action-button.ptab-blue { -fx-background-color: #2196F3; }
+.player-tile-action-button .svg-path {
+    -fx-fill: white;
+    -fx-scale-x: 0.7;
+    -fx-scale-y: 0.7;
+}
+
+.player-tile-action-button.ptab-blue { -fx-background-color: #2979FF; }
 .player-tile-action-button.ptab-blue:hover,
 .player-tile-action-button.ptab-blue:focused {
-    -fx-background-color: #1976D2; /* Darker blue */
-    -fx-border-color: gold;
-    -fx-effect: dropshadow(gaussian, rgba(255,215,0,0.6), 6, 0, 0, 0);
+    -fx-background-color: #1E88E5;
+    -fx-effect: dropshadow(gaussian, rgba(30,136,229,0.5), 8, 0, 0, 0);
 }
 
-.player-tile-action-button.ptab-qm { -fx-background-color: #4CAF50; }
+.player-tile-action-button.ptab-qm { -fx-background-color: #00C853; }
 .player-tile-action-button.ptab-qm:hover,
 .player-tile-action-button.ptab-qm:focused {
-    -fx-background-color: #388E3C; /* Darker green */
-    -fx-border-color: gold;
-    -fx-effect: dropshadow(gaussian, rgba(255,215,0,0.6), 6, 0, 0, 0);
+    -fx-background-color: #00BFA5;
+    -fx-effect: dropshadow(gaussian, rgba(0,200,83,0.5), 8, 0, 0, 0);
 }
 
-.player-tile-action-button.ptab-red { -fx-background-color: #F44336; }
+.player-tile-action-button.ptab-red { -fx-background-color: #FF3D00; }
 .player-tile-action-button.ptab-red:hover,
 .player-tile-action-button.ptab-red:focused {
-    -fx-background-color: #D32F2F; /* Darker red */
-    -fx-border-color: gold;
-    -fx-effect: dropshadow(gaussian, rgba(255,215,0,0.6), 6, 0, 0, 0);
+    -fx-background-color: #DD2C00;
+    -fx-effect: dropshadow(gaussian, rgba(255,61,0,0.5), 8, 0, 0, 0);
 }
 
-/* Fallback hover/focus for player tile action buttons if not specifically styled above */
-.player-tile-action-button:hover,
-.player-tile-action-button:focused {
-    -fx-border-color: gold;
-    -fx-effect: dropshadow(gaussian, rgba(255,215,0,0.5), 5, 0, 0, 0);
+.player-tile-action-button.ptab-remove-from-team {
+    -fx-background-color: #757575;
+}
+.player-tile-action-button.ptab-remove-from-team:hover,
+.player-tile-action-button.ptab-remove-from-team:focused {
+    -fx-background-color: #616161;
+    -fx-effect: dropshadow(gaussian, rgba(97,97,97,0.5), 8, 0, 0, 0);
+}
+
+.player-tile-action-button.ptab-remove {
+    -fx-background-color: #651FFF;
+}
+.player-tile-action-button.ptab-remove:hover,
+.player-tile-action-button.ptab-remove:focused {
+    -fx-background-color: #6200EA;
+     -fx-effect: dropshadow(gaussian, rgba(98,0,234,0.5), 8, 0, 0, 0);
 }
 
 .player-tile {
-    -fx-border-color: rgba(176, 184, 192, 0.7);
+    -fx-border-color: rgba(176, 184, 192, 0.5);
     -fx-border-width: 1px;
-    -fx-border-radius: 4px;
-    -fx-background-color: rgba(255, 255, 255, 0.03);
-    -fx-background-radius: 4px;
+    -fx-border-radius: 6px;
+    -fx-background-color: rgba(255, 255, 255, 0.05);
+    -fx-background-radius: 6px;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.1), 3, 0, 1, 1);
+}
+
+.player-tile-waiting {
+
+
+}
+
+.player-tile-blue {
+    -fx-background-color: rgba(50, 120, 220, 0.15);
+    -fx-border-color: rgba(50, 120, 220, 0.4);
+}
+
+.player-tile-red {
+    -fx-background-color: rgba(220, 50, 80, 0.15);
+    -fx-border-color: rgba(220, 50, 80, 0.4);
+}
+
+.player-tile:hover {
+    -fx-border-color: gold;
+    -fx-background-color: rgba(255, 255, 255, 0.1);
 }
 
 .player-tile-selected {
     -fx-border-color: gold;
     -fx-border-width: 1.5px;
-    -fx-effect: dropshadow(gaussian, rgba(255,215,0,0.3), 5, 0, 0, 0);
-    -fx-background-color: rgba(255, 215, 0, 0.05); /* Slightly different background for selected tile */
+    -fx-effect: dropshadow(gaussian, rgba(255,215,0,0.4), 6, 0, 0, 0);
+    -fx-background-color: rgba(255, 215, 0, 0.1);
 }
 
 .player-tile-nick {
-    -fx-text-fill: #E0E8F0;
-    -fx-font-size: 14px;
+    -fx-text-fill: #ECEFF1;
+    -fx-font-size: 15px;
+    -fx-font-weight: 500;
 }

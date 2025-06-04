@@ -2,7 +2,7 @@ package org.quizpans.services;
 
 import org.quizpans.config.DatabaseConfig;
 import org.quizpans.utils.SynonymManager;
-import org.quizpans.utils.TextNormalizer; // Nadal może być używany do fuzzy, ale nie do kluczy
+import org.quizpans.utils.TextNormalizer;
 import org.quizpans.utils.UsedQuestionsLogger;
 import org.apache.commons.text.similarity.LevenshteinDistance;
 import org.apache.commons.text.similarity.JaroWinklerSimilarity;
@@ -104,17 +104,19 @@ public class GameService {
             boolean questionLoaded = tryLoadQuestion(conn, usedIds, true);
 
             if (!questionLoaded) {
-                System.out.println("Nie znaleziono nowych pytań dla kategorii: " + category + ". Próba wylosowania spośród wszystkich pytań.");
+                String categoryInfo = (this.category == null) ? "wszystkich kategorii (MIX)" : "kategorii: " + this.category;
+                System.out.println("Nie znaleziono nowych pytań dla " + categoryInfo + ". Próba wylosowania spośród wszystkich pytań dla wybranego zakresu.");
                 questionLoaded = tryLoadQuestion(conn, Collections.emptySet(), false);
                 if (questionLoaded) {
-                    System.out.println("Wylosowano pytanie spośród wszystkich (ignorując listę użytych), ponieważ pula nowych pytań mogła się wyczerpać.");
+                    System.out.println("Wylosowano pytanie spośród wszystkich (ignorując listę użytych) dla zakresu: " + categoryInfo + ", ponieważ pula nowych pytań mogła się wyczerpać.");
                 }
             }
 
             if (!questionLoaded) {
                 currentQuestion = null;
-                System.err.println("Krytyczny błąd: Brak jakichkolwiek pytań dla kategorii: " + category);
-                throw new RuntimeException("Brak pytań dla kategorii: " + category);
+                String errorCategoryInfo = (this.category == null) ? "żadnej kategorii (MIX)" : "kategorii: " + this.category;
+                System.err.println("Krytyczny błąd: Brak jakichkolwiek pytań dla " + errorCategoryInfo);
+                throw new RuntimeException("Brak pytań dla " + errorCategoryInfo);
             }
 
         } catch (SQLException e) {
@@ -131,17 +133,28 @@ public class GameService {
 
     private boolean tryLoadQuestion(Connection conn, Set<Integer> idsToExclude, boolean excludeModeActive) throws SQLException {
         List<Integer> availableQuestionIds = new ArrayList<>();
-        String fetchIdsSqlBase = "SELECT id FROM Pytania WHERE kategoria = ?";
+        StringBuilder fetchIdsSqlBuilder = new StringBuilder("SELECT id FROM Pytania");
         List<Object> paramsForFetchIds = new ArrayList<>();
-        paramsForFetchIds.add(this.category);
+        boolean hasWhereClause = false;
+
+        if (this.category != null) { // Jeśli kategoria to MIX, this.category będzie null
+            fetchIdsSqlBuilder.append(" WHERE kategoria = ?");
+            paramsForFetchIds.add(this.category);
+            hasWhereClause = true;
+        }
 
         if (excludeModeActive && !idsToExclude.isEmpty()) {
+            if (!hasWhereClause) {
+                fetchIdsSqlBuilder.append(" WHERE");
+            } else {
+                fetchIdsSqlBuilder.append(" AND");
+            }
             String placeholders = String.join(",", Collections.nCopies(idsToExclude.size(), "?"));
-            fetchIdsSqlBase += " AND id NOT IN (" + placeholders + ")";
+            fetchIdsSqlBuilder.append(" id NOT IN (").append(placeholders).append(")");
             paramsForFetchIds.addAll(idsToExclude);
         }
 
-        try (PreparedStatement pstmtIds = conn.prepareStatement(fetchIdsSqlBase)) {
+        try (PreparedStatement pstmtIds = conn.prepareStatement(fetchIdsSqlBuilder.toString())) {
             for (int i = 0; i < paramsForFetchIds.size(); i++) {
                 pstmtIds.setObject(i + 1, paramsForFetchIds.get(i));
             }
@@ -198,7 +211,7 @@ public class GameService {
             if (answer != null && !answer.trim().isEmpty()) {
                 int points = rs.getInt("punkty" + i);
                 String originalAnswerTrimmed = answer.trim();
-                String simpleKey = originalAnswerTrimmed.toLowerCase(); // Prosty klucz
+                String simpleKey = originalAnswerTrimmed.toLowerCase();
 
                 if (simpleKey.isEmpty()) continue;
 
@@ -214,17 +227,17 @@ public class GameService {
             }
         }
         for (Map.Entry<String, String> entry : baseFormToOriginalMap.entrySet()) {
-            loadSynonyms(entry.getValue(), entry.getKey()); // Przekazuj oryginalny tekst i prosty klucz
+            loadSynonyms(entry.getValue(), entry.getKey());
         }
     }
 
     private void loadSynonyms(String originalAnswerText, String originalAnswerSimpleKey) {
-        List<String> rawSynonyms = SynonymManager.findSynonymsFor(originalAnswerText); // SynonymManager szuka po oryginalnym tekście
+        List<String> rawSynonyms = SynonymManager.findSynonymsFor(originalAnswerText);
         for (String syn : rawSynonyms) {
             String trimmedSyn = syn.trim();
             if (trimmedSyn.isEmpty()) continue;
 
-            String simpleSynonymKey = trimmedSyn.toLowerCase(); // Prosty klucz dla synonimu
+            String simpleSynonymKey = trimmedSyn.toLowerCase();
             if (simpleSynonymKey.isEmpty() || simpleSynonymKey.equals(originalAnswerSimpleKey)) {
                 continue;
             }
@@ -255,7 +268,7 @@ public class GameService {
     public Optional<String> checkAnswer(String userAnswer) {
         if (userAnswer == null || userAnswer.trim().isEmpty()) return Optional.empty();
 
-        String processedUserInputSimple = userAnswer.trim().toLowerCase(); // Prosta normalizacja odpowiedzi użytkownika
+        String processedUserInputSimple = userAnswer.trim().toLowerCase();
 
         if (processedUserInputSimple.isEmpty()) return Optional.empty();
 
@@ -268,15 +281,6 @@ public class GameService {
             return Optional.of(synonymMapsToKey);
         }
 
-        // Zachowujemy logikę fuzzy matching, ale ona nadal może używać TextNormalizer.normalizeToBaseForm
-        // dla bardziej zaawansowanego porównania, jeśli to konieczne.
-        // Jednak klucze główne, z którymi porównuje, powinny być teraz 'simpleKey'.
-        // To wymagałoby dostosowania logiki fuzzy matchingu, aby wiedziała, że
-        // correctAnswerKeySingleString to teraz simpleKey, a nie w pełni znormalizowana forma.
-        // Na potrzeby tego przykładu, zakładam, że fuzzy matching może nadal próbować
-        // normalizować, ale jego skuteczność będzie zależeć od spójności.
-
-        // --- Uproszczona/Zmodyfikowana logika Fuzzy (DO PRZEGLĄDU I DOSTOSOWANIA) ---
         String originalUserAnswerForComparison = userAnswer;
         String processedInputDeepNormalized = TextNormalizer.normalizeToBaseForm(originalUserAnswerForComparison);
         List<String> processedUserTokensDeepNormalized = TextNormalizer.getLemmatizedTokens(originalUserAnswerForComparison, true);
@@ -292,11 +296,9 @@ public class GameService {
         int inputSingleStringLength = processedInputDeepNormalized.length();
 
         for (Map.Entry<String, String> correctAnswerEntry : baseFormToOriginalMap.entrySet()) {
-            String correctAnswerSimpleKey = correctAnswerEntry.getKey(); // To jest teraz np. "slowo kluczowe"
+            String correctAnswerSimpleKey = correctAnswerEntry.getKey();
             String originalCorrectAnswerText = correctAnswerEntry.getValue();
 
-            // Do fuzzy matchingu możemy chcieć porównać głęboko znormalizowaną odpowiedź użytkownika
-            // z głęboko znormalizowaną formą poprawnej odpowiedzi (nie tylko z simpleKey)
             String correctDeepNormalized = TextNormalizer.normalizeToBaseForm(originalCorrectAnswerText);
             if (correctDeepNormalized.isEmpty()) continue;
 
@@ -373,7 +375,7 @@ public class GameService {
 
             if (currentCombinedConfidence > highestOverallConfidence) {
                 highestOverallConfidence = currentCombinedConfidence;
-                bestFuzzyMatchKey = correctAnswerSimpleKey; // Zwracamy simpleKey, nie deepNormalized
+                bestFuzzyMatchKey = correctAnswerSimpleKey;
             }
         }
 
@@ -393,15 +395,11 @@ public class GameService {
         if (bestFuzzyMatchKey != null && highestOverallConfidence >= effectiveThreshold) {
             return Optional.of(bestFuzzyMatchKey);
         }
-        // --- Koniec części Fuzzy ---
 
-
-        // Fallback dla pojedynczych słów, jeśli logika fuzzy nie zadziałała
-        // Tutaj porównujemy prostą formę odpowiedzi użytkownika z prostymi kluczami odpowiedzi
         if (processedUserInputSimple.split("\\s+").length == 1 && (bestFuzzyMatchKey == null || highestOverallConfidence < effectiveThreshold)) {
             for (Map.Entry<String, String> correctAnswerEntry : baseFormToOriginalMap.entrySet()) {
-                String correctAnswerSimpleKey = correctAnswerEntry.getKey(); // np. "slowo"
-                if (correctAnswerSimpleKey.split("\\s+").length == 1) { // Jeśli poprawna odpowiedź też jest jednowyrazowa
+                String correctAnswerSimpleKey = correctAnswerEntry.getKey();
+                if (correctAnswerSimpleKey.split("\\s+").length == 1) {
                     double jwFallback = jwSimilarity.apply(processedUserInputSimple, correctAnswerSimpleKey);
                     if (jwFallback >= FALLBACK_SINGLE_WORD_JARO_WINKLER_THRESHOLD) {
                         return Optional.of(correctAnswerSimpleKey);
@@ -434,7 +432,7 @@ public class GameService {
     public void setCurrentQuestionToNull() { currentQuestion = null; currentQuestionId = -1; answers.clear(); pointsMap.clear(); synonymMap.clear(); baseFormToOriginalMap.clear(); answerKeyToCombinedKeywords.clear();}
 
     public static class AnswerData {
-        public final String baseForm; // Ten "baseForm" to teraz będzie simpleKey
+        public final String baseForm;
         public final String originalText;
         public final int points;
         public final int displayOrderIndex;

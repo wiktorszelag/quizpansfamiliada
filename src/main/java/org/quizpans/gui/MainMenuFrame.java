@@ -22,6 +22,7 @@ import javafx.scene.paint.Stop;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 
+import org.quizpans.gui.onlinegame.OnlineLobbyChoiceFrame;
 import org.quizpans.services.OnlineService; // Import dla OnlineService
 import org.quizpans.utils.AutoClosingAlerts; // Import dla AutoClosingAlerts
 
