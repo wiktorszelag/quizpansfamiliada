@@ -28,8 +28,9 @@ import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 import javafx.animation.FadeTransition;
-import javafx.animation.PauseTransition; // Do debouncingu
+import javafx.animation.PauseTransition;
 
+import org.quizpans.online.model.ParticipantRole;
 import org.quizpans.services.GameService;
 import org.quizpans.services.OnlineService;
 import org.quizpans.online.model.PlayerInfo;
@@ -126,12 +127,12 @@ public class OnlineLobbyHostConfigFrame {
 
         loadResources();
         initializeView();
-        setupListenersAndBindings(); // Zmieniona nazwa dla jasności
+        setupListenersAndBindings();
 
         LobbyStateData initialLobbyState = onlineService.currentlyHostedLobbyStateProperty().get();
         if (initialLobbyState != null) {
-            updateFieldsFromLobbyState(initialLobbyState, true); // Inicjalne ustawienie bez zapisu
-            updateAllPlayerDisplays(initialLobbyState); // Odśwież graczy na starcie
+            updateFieldsFromLobbyState(initialLobbyState, true);
+            updateAllPlayerDisplays(initialLobbyState);
         } else {
             GameSettingsData defaultGs = new GameSettingsData();
             lastKnownCategory = defaultGs.category() == null ? MIX_CATEGORY_IDENTIFIER : defaultGs.category();
@@ -146,7 +147,7 @@ public class OnlineLobbyHostConfigFrame {
         } else if (!categoryComboBox.getItems().isEmpty()) {
             preloadCategoryData(categoryComboBox.getItems().get(0));
         } else {
-            isCategoryPreloadingSuccessful = false; // Jeśli nie ma kategorii
+            isCategoryPreloadingSuccessful = false;
         }
         updateStartGameButtonState();
     }
@@ -516,9 +517,7 @@ public class OnlineLobbyHostConfigFrame {
             }
         });
 
-        boolean isPlayerCurrentlyQuizMaster = currentQuizMaster.get() != null && currentQuizMaster.get().sessionId().equals(playerInfo.sessionId());
-
-        if (!isPlayerCurrentlyQuizMaster) {
+        if (playerInfo.getRole() != ParticipantRole.QUIZ_MASTER) {
             switch (currentPaneType) {
                 case "WAITING":
                     actionButtons.getChildren().addAll(assignToBlueBtn, assignAsQMBtm, assignToRedBtn);
@@ -528,6 +527,7 @@ public class OnlineLobbyHostConfigFrame {
                     break;
             }
         }
+
         if (!actionButtons.getChildren().isEmpty()) tileLayout.getChildren().add(actionButtons);
 
         tileLayout.setOnMouseClicked(event -> {
@@ -634,24 +634,12 @@ public class OnlineLobbyHostConfigFrame {
         teamBlueNameInput.textProperty().addListener(settingsChangeListener);
         teamRedNameInput.textProperty().addListener(settingsChangeListener);
 
-        categoryComboBox.setOnAction(event -> { // Dodatkowa obsługa dla ComboBox po zatwierdzeniu wyboru
+        categoryComboBox.setOnAction(event -> {
             if (!uiUpdatingFromServer) {
                 preloadCategoryData(categoryComboBox.getValue());
                 debounceTimer.playFromStart();
             }
         });
-
-
-        currentQuizMaster.addListener((obs, oldQm, newQm) -> Platform.runLater(() -> {
-            if (newQm != null) {
-                quizMasterNickLabel.setText("Prowadzący: " + newQm.nickname());
-                unassignQuizMasterButton.setVisible(true);
-            } else {
-                quizMasterNickLabel.setText("Prowadzący: (nieprzypisany)");
-                unassignQuizMasterButton.setVisible(false);
-            }
-            updateAllPlayerDisplays(onlineService.currentlyHostedLobbyStateProperty().get());
-        }));
 
         onlineService.currentlyHostedLobbyStateProperty().addListener((obs, oldState, newState) -> {
             if (newState != null && newState.getId().equals(this.lobbyId)) {
@@ -674,7 +662,7 @@ public class OnlineLobbyHostConfigFrame {
                 if (categoryToSet == null && categoryComboBox.getItems().contains(MIX_CATEGORY_IDENTIFIER)) {
                     categoryToSet = MIX_CATEGORY_IDENTIFIER;
                 } else if (categoryToSet == null && !categoryComboBox.getItems().isEmpty()) {
-                    categoryToSet = categoryComboBox.getItems().get(0); // Domyślna, jeśli null i MIX nie ma
+                    categoryToSet = categoryComboBox.getItems().get(0);
                 }
 
                 if (categoryToSet != null && categoryComboBox.getItems().contains(categoryToSet)) {
@@ -708,8 +696,6 @@ public class OnlineLobbyHostConfigFrame {
                 passwordField.setText(currentPassword);
             }
             lastKnownPassword = currentPassword;
-
-            currentQuizMaster.set(lobbyState.getQuizMaster());
 
         } finally {
             if (!isInitialSetup) {
@@ -774,11 +760,6 @@ public class OnlineLobbyHostConfigFrame {
         });
     }
 
-    private void triggerConfigSaveIfNeeded() {
-        debounceTimer.stop();
-        debounceTimer.playFromStart();
-    }
-
     private void actualSaveLobbyConfiguration() {
         if (uiUpdatingFromServer) return;
 
@@ -793,11 +774,10 @@ public class OnlineLobbyHostConfigFrame {
         String redTeamFinal = currentRedNameRaw.isEmpty() ? "Czerwoni" : currentRedNameRaw;
         String categoryToSend = MIX_CATEGORY_IDENTIFIER.equals(currentCategoryValue) || "Brak kategorii".equals(currentCategoryValue) ? null : currentCategoryValue;
 
-
         boolean configChanged = !Objects.equals(currentPasswordValue, lastKnownPassword) ||
                 !Objects.equals(blueTeamFinal, lastKnownTeamBlueName) ||
                 !Objects.equals(redTeamFinal, lastKnownTeamRedName) ||
-                !Objects.equals(categoryToSend, lastKnownCategory == null && MIX_CATEGORY_IDENTIFIER.equals(currentCategoryValue) ? null : lastKnownCategory) ||
+                !Objects.equals(categoryToSend, lastKnownCategory) ||
                 currentRoundsValue != lastKnownRounds ||
                 currentAnswerTimeValue != lastKnownAnswerTime;
 
@@ -825,7 +805,6 @@ public class OnlineLobbyHostConfigFrame {
         Map<String, Object> message = new HashMap<>();
         message.put("action", "configureLobby"); message.put("lobbyId", this.lobbyId);
         message.put("password", currentPasswordValue); message.put("gameSettings", newSettings);
-        System.out.println("JAVA_FX_CLIENT (HostConfig - actualSaveLobbyConfiguration): Wysyłanie konfiguracji: " + message);
         if (onlineService != null) onlineService.sendJsonMessage(message);
     }
 
@@ -856,63 +835,47 @@ public class OnlineLobbyHostConfigFrame {
         clearAllTileSelections();
     }
 
-    private List<PlayerInfo> filterWaitingPlayers(List<PlayerInfo> rawWaitingPlayers, PlayerInfo qm, GameSettingsData gs, Map<String, List<PlayerInfo>> teams) {
-        if (rawWaitingPlayers == null) return new ArrayList<>();
-        return rawWaitingPlayers.stream().filter(p -> {
-            if (qm != null && p.sessionId().equals(qm.sessionId())) return false;
-            if (gs != null && teams != null) {
-                String blueTeamKey = gs.teamBlueName() == null || gs.teamBlueName().isEmpty() ? "Niebiescy" : gs.teamBlueName();
-                String redTeamKey = gs.teamRedName() == null || gs.teamRedName().isEmpty() ? "Czerwoni" : gs.teamRedName();
-                if (teams.get(blueTeamKey) != null && teams.get(blueTeamKey).stream().anyMatch(tp -> tp.sessionId().equals(p.sessionId()))) return false;
-                if (teams.get(redTeamKey) != null && teams.get(redTeamKey).stream().anyMatch(tp -> tp.sessionId().equals(p.sessionId()))) return false;
-            }
-            return true;
-        }).collect(Collectors.toList());
-    }
-
     private void updateAllPlayerDisplays(LobbyStateData stateToUse) {
         Platform.runLater(() -> {
-            System.out.println("JAVA_FX_CLIENT (HostConfig - updateAllPlayerDisplays): Rozpoczęcie aktualizacji graczy.");
+            PlayerInfo qm = (stateToUse != null) ? stateToUse.getQuizMaster() : null;
+            if (qm != null) {
+                quizMasterNickLabel.setText("Prowadzący: " + qm.nickname());
+                unassignQuizMasterButton.setVisible(true);
+            } else {
+                quizMasterNickLabel.setText("Prowadzący: (nieprzypisany)");
+                unassignQuizMasterButton.setVisible(false);
+            }
+
             if (stateToUse != null) {
-                PlayerInfo qm = stateToUse.getQuizMaster();
+                updatePlayerTiles(waitingPlayersTilePane, stateToUse.getWaitingPlayers(), "WAITING");
+
                 GameSettingsData gs = stateToUse.getGameSettings();
                 Map<String, List<PlayerInfo>> teams = stateToUse.getTeams();
-                System.out.println("JAVA_FX_CLIENT (HostConfig - updateAllPlayerDisplays): Raw waitingPlayers from state: " + stateToUse.getWaitingPlayers());
-                List<PlayerInfo> filteredWaiting = filterWaitingPlayers(stateToUse.getWaitingPlayers(), qm, gs, teams);
-                System.out.println("JAVA_FX_CLIENT (HostConfig - updateAllPlayerDisplays): Filtered Waiting Players for UI: " + filteredWaiting);
-                updatePlayerTiles(waitingPlayersTilePane, filteredWaiting, "WAITING");
-
                 if (gs != null && teams != null) {
                     String blueKey = gs.teamBlueName() == null || gs.teamBlueName().isEmpty() ? "Niebiescy" : gs.teamBlueName();
                     String redKey = gs.teamRedName() == null || gs.teamRedName().isEmpty() ? "Czerwoni" : gs.teamRedName();
-                    System.out.println("JAVA_FX_CLIENT (HostConfig - updateAllPlayerDisplays): Team Blue for UI ("+blueKey+"): " + teams.get(blueKey));
-                    System.out.println("JAVA_FX_CLIENT (HostConfig - updateAllPlayerDisplays): Team Red for UI ("+redKey+"): " + teams.get(redKey));
                     updatePlayerTiles(teamBlueTilePane, teams.get(blueKey), "TEAM_BLUE");
                     updatePlayerTiles(teamRedTilePane, teams.get(redKey), "TEAM_RED");
                 } else {
-                    System.out.println("JAVA_FX_CLIENT (HostConfig - updateAllPlayerDisplays): GameSettings or Teams map is null, clearing team tiles.");
                     updatePlayerTiles(teamBlueTilePane, null, "TEAM_BLUE");
                     updatePlayerTiles(teamRedTilePane, null, "TEAM_RED");
                 }
             } else {
-                System.out.println("JAVA_FX_CLIENT (HostConfig - updateAllPlayerDisplays): stateToUse (LobbyStateData) is NULL, clearing all player tiles.");
                 updatePlayerTiles(waitingPlayersTilePane, null, "WAITING");
                 updatePlayerTiles(teamBlueTilePane, null, "TEAM_BLUE");
                 updatePlayerTiles(teamRedTilePane, null, "TEAM_RED");
             }
             clearAllTileSelections();
             updateStartGameButtonState();
-            System.out.println("JAVA_FX_CLIENT (HostConfig - updateAllPlayerDisplays): Zakończono aktualizację graczy.");
         });
     }
 
     private void updatePlayerTiles(TilePane tilePane, List<PlayerInfo> players, String paneType) {
-        System.out.println("JAVA_FX_CLIENT (HostConfig - updatePlayerTiles): Aktualizacja panelu: " + paneType + " z " + (players == null ? 0 : players.size()) + " graczami. Dane: " + players);
         tilePane.getChildren().clear();
         if (players != null) {
             for (PlayerInfo player : players) {
+                if (player.getRole() == ParticipantRole.QUIZ_MASTER) continue;
                 Node playerTile = createPlayerTile(player, paneType);
-                System.out.println("JAVA_FX_CLIENT (HostConfig - updatePlayerTiles): Dodawanie kafelka dla gracza: " + player.nickname() + " do panelu " + paneType);
                 tilePane.getChildren().add(playerTile);
             }
         }
@@ -999,22 +962,11 @@ public class OnlineLobbyHostConfigFrame {
     }
 
     public void updateFullLobbyState(LobbyStateData clientLobbyState) {
-        System.out.println("JAVA_FX_CLIENT (HostConfig): updateFullLobbyState OTRZYMAŁO: " + clientLobbyState);
         Platform.runLater(() -> {
-            if (clientLobbyState == null) {
-                System.out.println("JAVA_FX_CLIENT (HostConfig): clientLobbyState is NULL in updateFullLobbyState.");
+            if (clientLobbyState == null || !clientLobbyState.getId().equals(this.lobbyId)) {
                 return;
             }
-            System.out.println("JAVA_FX_CLIENT (HostConfig): Lobby ID: " + clientLobbyState.getId() + ", Name: " + clientLobbyState.getName());
-            System.out.println("JAVA_FX_CLIENT (HostConfig): Waiting Players from state: " + clientLobbyState.getWaitingPlayers());
-            System.out.println("JAVA_FX_CLIENT (HostConfig): Teams from state: " + clientLobbyState.getTeams());
-
-            if (!clientLobbyState.getId().equals(this.lobbyId)) {
-                System.out.println("JAVA_FX_CLIENT (HostConfig): Mismatch lobbyId, ignoring update. Expected: " + this.lobbyId + " Got: " + clientLobbyState.getId());
-                return;
-            }
-
-            updateFieldsFromLobbyState(clientLobbyState, false); // false, bo to nie jest initial setup
+            updateFieldsFromLobbyState(clientLobbyState, false);
             updateAllPlayerDisplays(clientLobbyState);
 
             if (waitingForGameStartConfirmation && clientLobbyState.getHostSessionId() != null && clientLobbyState.getHostSessionId().equals(clientSessionId)) {
