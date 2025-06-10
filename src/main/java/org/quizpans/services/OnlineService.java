@@ -22,16 +22,18 @@ import org.quizpans.gui.onlinegame.OnlineLobbyHostConfigFrame;
 import org.quizpans.gui.onlinegame.OnlineGamePrepFrame;
 import org.quizpans.online.model.OnlineLobbyUIData;
 import org.quizpans.online.model.LobbyStateData;
-import org.quizpans.online.model.GameSettingsData;
-import org.quizpans.online.model.PlayerInfo;
 import org.quizpans.utils.AutoClosingAlerts;
+import org.quizpans.utils.UsedQuestionsLogger;
 
+import java.io.IOException;
 import java.lang.reflect.Type;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 public class OnlineService {
@@ -46,6 +48,7 @@ public class OnlineService {
     private String clientSessionId;
 
     private final ObjectProperty<LobbyStateData> currentlyHostedLobbyState = new SimpleObjectProperty<>(null);
+    private int lastLoggedQuestionId = -1;
 
     public OnlineService(String serverUri) {
         this.serverUri = serverUri;
@@ -95,7 +98,6 @@ public class OnlineService {
 
     public void connect() {
         if (isOpen()) {
-            System.out.println("CLIENT OnlineService: Already connected. Requesting lobbies.");
             Platform.runLater(()-> {
                 Map<String, Object> requestLobbiesMessage = new HashMap<>();
                 requestLobbiesMessage.put("action", "getAllLobbies");
@@ -107,18 +109,15 @@ public class OnlineService {
             webSocketClient = new WebSocketClient(new URI(serverUri)) {
                 @Override
                 public void onOpen(ServerHandshake handshakedata) {
-                    System.out.println("CLIENT OnlineService: Połączono z serwerem WebSocket: " + serverUri);
                 }
 
                 @Override
                 public void onMessage(String message) {
-                    System.out.println("CLIENT OnlineService RAW MESSAGE RECEIVED: " + message);
                     Platform.runLater(() -> handleServerMessageInternal(message));
                 }
 
                 @Override
                 public void onClose(int code, String reason, boolean remote) {
-                    System.out.println("CLIENT OnlineService: Rozłączono z serwerem WebSocket. Kod: " + code + ", Powód: " + reason);
                     Platform.runLater(() -> {
                         onlineLobbies.clear();
                         currentlyHostedLobbyState.set(null);
@@ -133,7 +132,6 @@ public class OnlineService {
 
                 @Override
                 public void onError(Exception ex) {
-                    System.err.println("CLIENT OnlineService: Błąd WebSocket: " + ex.getMessage());
                     Platform.runLater(() -> {
                         if (activeHostConfigFrame != null || activeGamePrepFrame != null) {
                             showStatusMessage("Błąd połączenia z serwerem.", "error", 8000, false);
@@ -141,10 +139,8 @@ public class OnlineService {
                     });
                 }
             };
-            System.out.println("CLIENT OnlineService: Próba połączenia z " + serverUri);
             webSocketClient.connect();
         } catch (URISyntaxException e) {
-            System.err.println("CLIENT OnlineService: Niepoprawny URI serwera WebSocket: " + serverUri + " - " + e.getMessage());
         }
     }
 
@@ -153,12 +149,10 @@ public class OnlineService {
             Type mapType = new TypeToken<Map<String, Object>>(){}.getType();
             Map<String, Object> parsedMessage = gson.fromJson(message, mapType);
             String messageType = (String) parsedMessage.get("type");
-            System.out.println("CLIENT OnlineService: Parsed message type: " + messageType);
 
 
             if ("yourSessionId".equals(messageType) && parsedMessage.containsKey("sessionId")) {
                 this.clientSessionId = (String) parsedMessage.get("sessionId");
-                System.out.println("CLIENT OnlineService: Moje ID sesji: " + this.clientSessionId);
                 Map<String, Object> requestLobbiesMessage = new HashMap<>();
                 requestLobbiesMessage.put("action", "getAllLobbies");
                 sendJsonMessage(requestLobbiesMessage);
@@ -167,7 +161,6 @@ public class OnlineService {
 
             if ("allLobbies".equals(messageType) || "allLobbiesUpdate".equals(messageType)) {
                 Object lobbiesData = parsedMessage.get("lobbies");
-                System.out.println("CLIENT OnlineService: Received " + messageType + " with data: " + lobbiesData);
                 if (lobbiesData instanceof List) {
                     List<Map<String, Object>> rawLobbies = (List<Map<String, Object>>) lobbiesData;
                     List<OnlineLobbyUIData> newLobbiesList = rawLobbies.stream()
@@ -177,13 +170,11 @@ public class OnlineService {
                 }
             } else if ("lobbyUpdate".equals(messageType)) {
                 Object lobbyDataRaw = parsedMessage.get("lobby");
-                System.out.println("CLIENT OnlineService: Received lobbyUpdate. Raw lobby data: " + lobbyDataRaw);
                 if (lobbyDataRaw instanceof Map) {
                     Map<String, Object> rawLobbyMap = (Map<String, Object>) lobbyDataRaw;
                     LobbyStateData receivedLobbyState = parseRawMapToClientLobbyStateData(rawLobbyMap);
 
                     if (receivedLobbyState != null) {
-                        System.out.println("CLIENT OnlineService: Parsed LobbyStateData ID: " + receivedLobbyState.getId() + " Waiting: " + receivedLobbyState.getWaitingPlayers() + " Teams: " + receivedLobbyState.getTeams());
                         String receivedLobbyId = receivedLobbyState.getId();
 
                         onlineLobbies.stream()
@@ -198,12 +189,16 @@ public class OnlineService {
                                 });
 
                         if (clientSessionId != null && clientSessionId.equals(receivedLobbyState.getHostSessionId())) {
-                            System.out.println("CLIENT OnlineService: This client is host, updating currentlyHostedLobbyState for lobby: " + receivedLobbyId);
                             currentlyHostedLobbyState.set(receivedLobbyState);
+
+                            int newQuestionId = receivedLobbyState.getCurrentQuestionId();
+                            if (newQuestionId > 0 && newQuestionId != lastLoggedQuestionId) {
+                                UsedQuestionsLogger.addUsedQuestionId(newQuestionId);
+                                lastLoggedQuestionId = newQuestionId;
+                            }
                         }
 
                         if (activeHostConfigFrame != null && activeHostConfigFrame.getLobbyId().equals(receivedLobbyId)) {
-                            System.out.println("CLIENT OnlineService: activeHostConfigFrame found for lobby: " + receivedLobbyId + ". Calling updateFullLobbyState.");
                             activeHostConfigFrame.updateFullLobbyState(receivedLobbyState);
                         }
 
@@ -219,19 +214,37 @@ public class OnlineService {
                                 showStatusMessage("Lobby '" + receivedLobbyState.getName() + "' zakończyło grę lub host opuścił.", "info", 5000, true);
                             }
                         }
-                    } else {
-                        System.err.println("CLIENT OnlineService: receivedLobbyState is null after parsing.");
                     }
                 }
             }  else if ("error".equals(messageType)) {
                 String errorMessage = (String) parsedMessage.get("message");
-                System.err.println("CLIENT OnlineService: Server error: " + errorMessage);
-                showStatusMessage("Serwer: " + errorMessage, "error", 5000, false);
+                if ("REQUEST_NEW_QUESTION_DATA".equals(errorMessage)) {
+                    LobbyStateData currentLobby = currentlyHostedLobbyState.get();
+                    if (currentLobby != null && clientSessionId.equals(currentLobby.getHostSessionId())) {
+                        try {
+                            Set<Integer> usedIds = UsedQuestionsLogger.loadUsedQuestionIdsFromFile();
+                            Map<String, Object> msg = new HashMap<>();
+                            msg.put("action", "requestNewQuestion");
+                            msg.put("lobbyId", currentLobby.getId());
+                            msg.put("usedQuestionIds", usedIds);
+                            sendJsonMessage(msg);
+                        } catch (IOException e) {
+                            showStatusMessage("Błąd odczytu lokalnej historii pytań.", "error", 6000, false);
+                        }
+                    }
+                }
+                else if ("NO_QUESTIONS_AVAILABLE".equals(errorMessage)) {
+                    UsedQuestionsLogger.clearUsedQuestionsLog();
+                    AutoClosingAlerts.show(null, Alert.AlertType.INFORMATION, "Reset puli pytań", null, "Wszystkie pytania z wybranej kategorii zostały użyte. Historia została wyczyszczona. Spróbuj rozpocząć grę ponownie.", Duration.seconds(10));
+                    if (activeHostConfigFrame != null) {
+                        activeHostConfigFrame.updateFullLobbyState(currentlyHostedLobbyState.get());
+                    }
+                } else {
+                    showStatusMessage("Serwer: " + errorMessage, "error", 5000, false);
+                }
             }
         } catch (JsonSyntaxException e) {
-            System.err.println("CLIENT OnlineService: Błąd parsowania JSON od serwera: " + message + " - " + e.getMessage());
         } catch (Exception e) {
-            System.err.println("CLIENT OnlineService: Nieoczekiwany błąd podczas obsługi wiadomości od serwera: " + message + " - " + e.getMessage());
             e.printStackTrace();
         }
     }
@@ -256,17 +269,14 @@ public class OnlineService {
         try {
             return gson.fromJson(lobbyJson, lobbyStateType);
         } catch (JsonSyntaxException e) {
-            System.err.println("CLIENT OnlineService: Error deserializing to LobbyStateData: " + lobbyJson + " - " + e.getMessage());
             return null;
         }
     }
 
     public void sendMessage(String message) {
         if (webSocketClient != null && webSocketClient.isOpen()) {
-            System.out.println("CLIENT OnlineService: Sending message: " + message);
             webSocketClient.send(message);
         } else {
-            System.err.println("CLIENT OnlineService: Nie można wysłać wiadomości - klient WebSocket nie jest połączony.");
         }
     }
 

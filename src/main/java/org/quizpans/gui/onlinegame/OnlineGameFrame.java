@@ -312,46 +312,50 @@ public class OnlineGameFrame {
     }
 
     private void updateAnswerPanes(List<Map<String, Object>> currentAnswersData) {
-        for (int i = 0; i < answerPanes.length; i++) {
-            resetAnswerPane(i);
-        }
-        if (currentAnswersData == null) return;
-
-        int actualAnswersCount = 0;
-        for (Map<String, Object> answerData : currentAnswersData) {
-            Object textObj = answerData.get("text");
-            if (textObj instanceof String && !((String)textObj).isEmpty()){
-                actualAnswersCount++;
-            }
-        }
-
-        for (int i = 0; i < answerPanes.length; i++) {
-            if(answerPanes[i] != null) {
-                answerPanes[i].setVisible(i < actualAnswersCount);
-            }
-        }
-
-        for (Map<String, Object> answerData : currentAnswersData) {
-            Object textObj = answerData.get("text");
-            Object pointsObj = answerData.get("points");
-            Object revealedObj = answerData.get("isRevealed");
-            Object positionObj = answerData.get("position");
-
-            if (textObj instanceof String && pointsObj instanceof Number && revealedObj instanceof Boolean && positionObj instanceof Number) {
-                String text = (String) textObj;
-                int points = ((Number) pointsObj).intValue();
-                boolean isRevealed = (Boolean) revealedObj;
-                int position = ((Number) positionObj).intValue();
-
-                if (position >= 0 && position < answerPanes.length && answerPanes[position] != null) {
-                    answerPanes[position].setVisible(true);
-                    if (isRevealed) {
-                        revealAnswerOnBoard(text, points, position);
-                    }
+        if (currentAnswersData == null) {
+            for (int i = 0; i < answerPanes.length; i++) {
+                if (answerPanes[i] != null) {
+                    answerPanes[i].setVisible(false);
                 }
+            }
+            return;
+        }
+
+        Map<Integer, Map<String, Object>> answersByPosition = new HashMap<>();
+        for (Map<String, Object> answerData : currentAnswersData) {
+            if (answerData.get("position") instanceof Number) {
+                int pos = ((Number) answerData.get("position")).intValue();
+                answersByPosition.put(pos, answerData);
+            }
+        }
+
+        for (int i = 0; i < answerPanes.length; i++) {
+            BorderPane pane = answerPanes[i];
+            if (pane == null) continue;
+
+            Map<String, Object> answerForThisPosition = answersByPosition.get(i);
+
+            if (answerForThisPosition != null) {
+                pane.setVisible(true);
+                boolean isRevealed = (Boolean) answerForThisPosition.getOrDefault("isRevealed", false);
+                boolean isUiRevealed = pane.getStyleClass().contains("answer-revealed");
+
+                if (isRevealed && !isUiRevealed) {
+                    String text = (String) answerForThisPosition.get("text");
+                    int points = ((Number) answerForThisPosition.get("points")).intValue();
+                    revealAnswerOnBoard(text, points, i);
+                } else if (!isRevealed && isUiRevealed) {
+                    resetAnswerPane(i);
+                }
+            } else {
+                if (pane.isVisible() || pane.getStyleClass().contains("answer-revealed")) {
+                    resetAnswerPane(i);
+                }
+                pane.setVisible(false);
             }
         }
     }
+
 
     private void revealAnswerOnBoard(String answerText, int points, int position) {
         if (position < 0 || position >= answerPanes.length || answerPanes[position] == null) {
@@ -396,7 +400,6 @@ public class OnlineGameFrame {
         pane.setCenter(placeholderLabel);
         pane.setRight(null);
         BorderPane.setAlignment(placeholderLabel, Pos.CENTER_LEFT);
-        pane.setVisible(false);
     }
 
     private void setFrameProperties() {

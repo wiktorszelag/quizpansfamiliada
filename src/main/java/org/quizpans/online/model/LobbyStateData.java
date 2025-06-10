@@ -18,6 +18,7 @@ public class LobbyStateData {
 
     private int currentRoundNumber;
     private String currentQuestionText;
+    private int currentQuestionId;
     private int totalRounds;
     private String currentPlayerSessionId;
     private boolean isTeam1Turn;
@@ -70,6 +71,9 @@ public class LobbyStateData {
     public String getCurrentQuestionText() { return currentQuestionText; }
     public void setCurrentQuestionText(String currentQuestionText) { this.currentQuestionText = currentQuestionText; }
 
+    public int getCurrentQuestionId() { return currentQuestionId; }
+    public void setCurrentQuestionId(int currentQuestionId) { this.currentQuestionId = currentQuestionId; }
+
     public int getTotalRounds() { return totalRounds; }
     public void setTotalRounds(int totalRounds) { this.totalRounds = totalRounds; }
 
@@ -84,6 +88,8 @@ public class LobbyStateData {
 
     public int getTeam2Score() { return team2Score; }
     public void setTeam2Score(int team2Score) { this.team2Score = team2Score; }
+
+
 
     public int getTeam1Errors() { return team1Errors; }
     public void setTeam1Errors(int team1Errors) { this.team1Errors = team1Errors; }

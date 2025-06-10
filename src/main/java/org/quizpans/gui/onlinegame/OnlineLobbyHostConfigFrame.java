@@ -37,10 +37,13 @@ import org.quizpans.online.model.PlayerInfo;
 import org.quizpans.online.model.GameSettingsData;
 import org.quizpans.online.model.LobbyStateData;
 import org.quizpans.utils.AutoClosingAlerts;
+import org.quizpans.utils.UsedQuestionsLogger;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -158,7 +161,6 @@ public class OnlineLobbyHostConfigFrame {
                 userIcon = new Image(stream);
             }
         } catch (Exception e) {
-            System.err.println("Błąd ładowania user_icon.png: " + e.getMessage());
         }
     }
 
@@ -216,9 +218,17 @@ public class OnlineLobbyHostConfigFrame {
 
         startGameButton.setOnAction(e -> {
             if (onlineService != null && lobbyId != null && isCategoryPreloadingSuccessful) {
+                Set<Integer> usedIds = new HashSet<>();
+                try {
+                    usedIds = UsedQuestionsLogger.loadUsedQuestionIdsFromFile();
+                } catch (IOException ioException) {
+                    AutoClosingAlerts.show(stage, Alert.AlertType.WARNING, "Ostrzeżenie", "Nie udało się wczytać historii pytań.", "Gra rozpocznie się bez sprawdzania historii użytych pytań.", Duration.seconds(5));
+                }
+
                 Map<String, Object> message = new HashMap<>();
                 message.put("action", "startGame");
                 message.put("lobbyId", this.lobbyId);
+                message.put("usedQuestionIds", usedIds);
                 onlineService.sendJsonMessage(message);
                 waitingForGameStartConfirmation = true;
                 startGameButton.setDisable(true);
@@ -838,6 +848,9 @@ public class OnlineLobbyHostConfigFrame {
     private void updateAllPlayerDisplays(LobbyStateData stateToUse) {
         Platform.runLater(() -> {
             PlayerInfo qm = (stateToUse != null) ? stateToUse.getQuizMaster() : null;
+
+            currentQuizMaster.set(qm);
+
             if (qm != null) {
                 quizMasterNickLabel.setText("Prowadzący: " + qm.nickname());
                 unassignQuizMasterButton.setVisible(true);
@@ -958,7 +971,7 @@ public class OnlineLobbyHostConfigFrame {
         try {
             String cssPath = getClass().getResource("/styles.css").toExternalForm();
             if (cssPath != null && !scene.getStylesheets().contains(cssPath)) scene.getStylesheets().add(cssPath);
-        } catch (Exception e) {System.err.println("Error loading CSS for OnlineLobbyHostConfigFrame: " + e.getMessage());}
+        } catch (Exception e) {}
     }
 
     public void updateFullLobbyState(LobbyStateData clientLobbyState) {
@@ -983,7 +996,9 @@ public class OnlineLobbyHostConfigFrame {
                         fadeOut.setOnFinished(event -> {
                             currentScene.setRoot(prepFrameRoot); prepFrame.show();
                             FadeTransition fadeIn = new FadeTransition(Duration.millis(300), prepFrameRoot);
-                            fadeIn.setFromValue(0.0); fadeIn.setToValue(1.0); fadeIn.play();
+                            fadeIn.setFromValue(0.0);
+                            fadeIn.setToValue(1.0);
+                            fadeIn.play();
                             if (onlineService != null) onlineService.clearActiveHostConfigFrame();
                         });
                         fadeOut.play();
